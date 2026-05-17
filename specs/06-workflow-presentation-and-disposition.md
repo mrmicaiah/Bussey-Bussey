@@ -1,42 +1,43 @@
 # 06 — Workflow: Presentation & Disposition
 
-The presentation is a template-driven, read-only, client-facing view of the opportunity. It's designed to be shared on Zoom (or presented in person) while the admin keeps a separate editing window for live updates. The disposition (outcome) is captured in the admin window after the presentation, not on the presentation page itself.
+The presentation is a template-driven multi-page experience tied to an opportunity. The demo (manually built) is embedded. Dispositions are captured in the admin window — not in the presentation itself.
 
-## Actors
-- Admin user (drives the presentation from the admin window, captures disposition)
-- Prospect (views the presentation, either over screen-share or via shared link)
+## Two-Window Model
 
-## Two-Window Mode
+During a sales call, the admin runs two windows:
 
-This is the key workflow shape:
+**Window 1: Presentation** (shared in Zoom / shown to client)
+- URL: `busseyandbussey.com/p/[opportunity-token]/`
+- Read-only, client-facing view
+- Shows: cover, demo, solution, investment, next steps
+- Token-protected (no auth required to view)
+- No disposition controls visible — this window is purely for the client to see
 
-```
-┌──────────────────────┐   ┌───────────────────────────┐
-│  ADMIN WINDOW       │   │  PRESENTATION WINDOW       │
-│  (admin's screen)   │   │  (shared on Zoom)          │
-│                     │   │                            │
-│  Calculator         │◄──►│  /p/[opportunity-token]/   │
-│  Edit fields        │   │                            │
-│  Save               │   │  Cover                     │
-│                     │   │  Challenge                 │
-│  Disposition btns   │   │  Demo                      │
-│  [Accepted]         │   │  Solution                  │
-│  [Follow-Up]        │   │  Timeline                  │
-│  [Changes Req.]     │   │  Investment                │
-│  [Declined]         │   │  Next Steps                │
-│                     │   │                            │
-│  Notes strip        │   │  (read-only, public-token) │
-└──────────────────────┘   └───────────────────────────┘
+**Window 2: Admin / Editor** (private to admin, not shared)
+- URL: `busseyandbussey.com/admin/clients/:id/opportunities/:opp_id/`
+- Contains: calculator/proposal editor, presentation notes drawer, disposition controls
+- Edits here propagate to the presentation window via live sync
 
-         When admin saves → presentation updates within seconds (polling sync)
-```
+**Why two windows:** the admin needs to control, edit, capture notes, and disposition during the call without the client seeing any of that. Sharing only the presentation window keeps the experience clean for the prospect.
 
-- **Admin window:** authenticated, full control. Calculator, editing, presentation notes, disposition controls.
-- **Presentation window:** anonymous (token-protected), read-only, pure client-facing display.
-- The presentation window polls for updates every few seconds. When admin saves changes, the presentation auto-refreshes the relevant content in place — no manual page reload required, no scroll loss, no demo iframe reload (unless demo content actually changed).
-- Visual indicator (subtle "Updated" badge) flashes when content syncs, so admin knows their edit took effect.
+## Live Sync Mechanism
 
-This pattern lets admin edit live during a call without ever touching the screen the client is looking at.
+When admin saves a change in Window 2 (line item edit, narrative tweak, pricing display toggle, etc.), Window 1 picks up the change automatically.
+
+**Implementation: polling.**
+- Presentation window polls the Worker every 3-5 seconds for the opportunity's `updated_at` timestamp
+- If timestamp has changed since last fetch, fetch fresh data and re-render affected sections
+- Visual indicator: subtle "Updated" badge appears top-right of presentation window for 2 seconds when content refreshes
+- No full page reload — in-place reactive update
+
+**Latency:** typical update appears in the presentation within 3-5 seconds. Acceptable for sales conversations.
+
+**Future:** server-sent events for sub-second sync. Not needed for v1.
+
+**Mid-page-navigation safety:**
+- If client is viewing a page that didn't change, no visible reaction
+- If client is viewing a page that did change, content updates in place; the page does not scroll; the section just re-renders
+- Demo iframes do NOT auto-reload (demos are static files; their content didn't change in the database)
 
 ## Presentation URL
 
@@ -45,9 +46,8 @@ Each opportunity has a presentation accessible at:
 
 - Token is unguessable (cryptographically random, ~24 chars)
 - No authentication required to view
-- The presentation reads from the opportunity's current proposal
-- Same URL works for in-person presenting, screen-share, or sending the link to the prospect to view solo
-- **Contains no admin controls of any kind.** The disposition is captured in the admin window.
+- The presentation reads from the opportunity's accepted/current proposal
+- Same URL works for in-person presenting, screen-share, or sending the link
 
 ## Page Structure (Template)
 
@@ -59,6 +59,7 @@ All presentations have the same shell. Content swaps based on opportunity data.
    - Prepared for: [primary contact]
    - Date
    - Presenter info
+   - "Begin" button
 
 2. **The Challenge** (proposal narrative — intro section)
    - Template intro
@@ -86,39 +87,24 @@ All presentations have the same shell. Content swaps based on opportunity data.
    - Monthly subscription (large, prominent)
    - "What's included" — plain language list
    - Optional categorical breakdown (toggle)
-   - Clean, professional presentation
+   - Stripe-style clean presentation
 
 7. **Next Steps**
    - Standard template content
    - What happens after acceptance ("You'll get an email with portal credentials...")
-   - **No disposition buttons here.** The presentation ends as a clean client-facing close.
 
-## Live Sync Mechanism
+**Note:** there is no "disposition page" in the presentation. Dispositions live in the admin window (see below).
 
-**Implementation: polling.**
+## Disposition Capture (Admin Window)
 
-- Presentation window polls `GET /p/:token/data` every 3-5 seconds
-- Response includes a `last_updated_at` timestamp on the opportunity
-- If timestamp changed since last poll, fetch full data, re-render affected sections
-- Re-rendering is reactive (framework handles in-place DOM updates); no full page reload
-- Demo iframe is NOT reloaded unless the demo content itself was rebuilt (rare during a call)
-- Subtle visual indicator: "Updated" badge top-right of the presentation window, fades after 2 seconds
-
-Why polling and not WebSockets: simpler, no Durable Objects needed, 3-5 second latency is fine for sales presentations. Can upgrade to push-based later if needed.
-
-## Disposition Capture (in Admin Window)
-
-Disposition controls live on the admin opportunity detail page — not on the presentation. After (or during) the presentation, admin captures the outcome in their admin window.
-
-Four outcomes:
+After the presentation, the admin captures the outcome in the admin opportunity detail page. Four options:
 
 ### 🟢 Accepted
 Triggers immediate activation. See `07-workflow-acceptance-and-activation.md` for full flow.
 - Confirmation modal: "Activate [Client Name] for [Opportunity Name]?"
-- On confirm: opportunity.status = accepted, opportunity.accepted_at = now, proposal.status = accepted, proposal.accepted_at = now
+- On confirm: opportunity.status = accepted, opportunity.accepted_at = now, proposal.status = accepted, proposal.accepted_at = now, pricing_snapshot.is_locked = true
+- Creates project record (carries forward presentation_notes from proposal)
 - Creates portal_account with temporary password
-- Locks the pricing snapshot permanently
-- Creates the project record, snapshot-copies presentation notes to it
 - Shows credentials screen to admin
 
 ### 🟡 Follow-Up Needed
@@ -128,11 +114,11 @@ Triggers immediate activation. See `07-workflow-acceptance-and-activation.md` fo
 - Optional reminder fires on the chosen date
 
 ### 🟠 Changes Requested
-- Modal: notes field for what the prospect wants changed
-- On confirm: notes saved to the proposal's presentation notes or internal notes (admin's choice), opportunity stays in `open` status
-- **Admin returns to the calculator and edits the draft proposal directly.** No change order is created — nothing is locked yet, so direct editing is the right move.
-- Once edited, admin re-presents. Same URL, updated content via live sync.
-- When prospect eventually accepts, normal Accepted flow runs against the edited proposal.
+- Modal: short note field for what changes are requested
+- On confirm: opportunity status stays open, notes recorded
+- **Admin returns to the proposal editor and makes the requested changes directly.** No formal change order — the proposal is still in draft and freely editable.
+- After edits, admin re-presents (same URL, updated content via live sync)
+- If presentation is over 90 days old, system prompts to clone before further editing
 
 ### 🔴 Declined
 - Modal: Reason dropdown (too_expensive / bad_timing / went_with_competitor / not_a_fit / other) + notes
@@ -140,9 +126,18 @@ Triggers immediate activation. See `07-workflow-acceptance-and-activation.md` fo
 - Proposal status = declined
 - Client status reviewed (if no other open opportunities, client becomes prospect or former)
 
-## Note on Pre-Acceptance Changes
+## Pre-Acceptance Revisions
 
-**There are no pre-acceptance change orders.** Before Accepted is clicked, nothing is locked. If the prospect asks for revisions, the admin edits the draft proposal directly. Change orders only exist post-acceptance, when the proposal has become a binding agreement.
+There are no "pre-acceptance change orders." Revisions before acceptance are just edits to the draft proposal:
+
+- Prospect requests changes → admin clicks Changes Requested disposition (captures the note)
+- Admin edits the proposal directly (line items, narrative, anything)
+- Snapshot rates stay locked to original creation rates (no refresh)
+- Presentation window updates automatically via live sync (or after re-share)
+- Re-present to prospect when ready
+- When prospect eventually accepts, whatever's in the proposal at that moment is what gets locked
+
+This is much simpler than a change order ledger of pre-acceptance modifications, and matches how draft documents actually work.
 
 ## Presentation Editing
 
@@ -152,10 +147,11 @@ Admin can edit presentation content from the proposal record:
 - `key_capabilities` (list)
 - `pricing_display_mode` (summary / categorical / full)
 - `demo_enabled` (boolean — show or skip demo page)
-- Cover page customization (date, presenter, custom intro line)
-- Any scope/line item changes flow through the calculator
+- `custom_pages` (optional — for adding extra slides, not in v1)
+- Pricing line items (via calculator)
+- Presentation notes (internal, never displayed)
 
-All edits flow through to the presentation window via live sync.
+All edits propagate to the presentation window via live sync.
 
 ## Demo Folder Convention
 
@@ -175,9 +171,9 @@ For each opportunity that needs a demo:
 
 ## Out of Scope (v1)
 
-- Push-based sync (WebSockets/SSE) — polling is sufficient
-- Live collaborative viewing (Zoom-style synchronization beyond shared screen)
+- Live collaborative viewing (Zoom-style synchronization beyond simple polling)
 - Analytics on which pages prospect viewed (could be added later)
 - Video embedding within presentation
 - Multiple presenters with role switching
 - Localization / multi-language
+- WebSocket / SSE live sync (polling is sufficient for v1)

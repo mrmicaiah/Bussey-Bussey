@@ -1,6 +1,6 @@
 # 05 — Workflow: Opportunity Creation, Calculator, Proposal
 
-The heart of the sales operation. An opportunity is created under a client. The calculator builds a proposal. The proposal locks a pricing snapshot at creation. While in draft, the proposal is freely editable using those snapshot rates. Acceptance is what locks everything.
+The heart of the sales operation. An opportunity is created under a client. The calculator builds a proposal. The proposal owns a pricing snapshot. From here, presentations are generated.
 
 ## Actors
 - Admin user (driving the calculator)
@@ -26,34 +26,26 @@ Admin lands on opportunity page. Prompt: "Build Proposal"
 Proposal builder opens (calculator interface)
         │
         ▼
-Admin works through the calculator (see Calculator UI below)
+Admin works through the calculator. On first save:
+  • Proposal record created (status = draft)
+  • Pricing snapshot taken from current pricing_components
+  • Proposal line items written with snapshot rates
+  • 90-day staleness clock starts
         │
         ▼
-On first save: system creates proposal record (status = draft),
-snapshots pricing_components into pricing_snapshot,
-writes proposal_line_items, calculates setup_total and monthly_total.
-Snapshot rates are now locked-for-this-proposal (stay through edits).
+Admin can freely edit the proposal:
+  • Add / remove / change line items
+  • Edit narrative, capabilities, pricing display mode
+  • Capture presentation notes
+  • Edits use snapshot rates (no refresh from live pricing_components)
         │
         ▼
-Proposal in draft. 90-day staleness clock starts.
-        │
-        ▼
-Admin can freely edit: add/remove line items, change quantities, edit notes.
-Edits use snapshot rates (no rate refresh). Totals recalc.
-No audit logging required for draft edits beyond ordinary admin activity.
-        │
-        ▼
-Admin can: continue editing, clone (creates new proposal with fresh snapshot),
-or proceed to presentation.
-        │
-        ▼
-Proposal is locked into binding state only at Accepted disposition
-(see 07-workflow-acceptance-and-activation.md).
+Admin proceeds to presentation (see workflow 06)
 ```
 
 ## Calculator UI (Admin-Facing)
 
-**Layout: Three panes plus a notes strip.**
+**Layout: Three panes plus a notes drawer.**
 
 **Left pane — component palette.** Grouped categories:
 - Tables (standard, complex)
@@ -65,12 +57,12 @@ Proposal is locked into binding state only at Accepted disposition
 - Setup & migration
 - Custom (free-form line item with name + price)
 
-Each component shows its current rate from `pricing_components` table. Note: this is for *new* proposals. Once a proposal has its snapshot, edits use snapshot rates not these live rates.
+Each component shows its current rate from `pricing_components` table (live), with the note that adding it to the proposal will use the proposal's snapshot rate (which equals the live rate at the moment of proposal creation).
 
 **Middle pane — the proposal build.** Selected components show as line items:
 - Component name
 - Quantity (editable)
-- Unit price (from snapshot — set at proposal creation, stable through draft edits)
+- Unit price (from snapshot — stays at original rate even when proposal is edited)
 - Line total
 - Description override (optional)
 - Remove button
@@ -78,7 +70,7 @@ Each component shows its current rate from `pricing_components` table. Note: thi
 Also editable here:
 - Proposal name
 - Modifiers section (complexity multiplier, urgency, custom discount %)
-- Internal notes (admin-only, not visible to client)
+- Notes for internal use
 
 **Right pane — live totals.**
 - Subtotal (setup)
@@ -89,62 +81,59 @@ Also editable here:
 - Buffer indicator (internal)
 - Package match: "Closest match: Professional ($X — $Y range)" — informational only
 
-**Notes strip — presentation notes.**
-- Persistent, always-visible text area along the bottom or as a docked sidebar
-- Free-text notes captured during the sales conversation
-- Always editable, auto-saving
-- Examples: "They want audit module live by March 1", "Owner is resistant to AI language", "87 caregivers, growing to 120"
-- **Not visible** in the presentation window or to the client
-- Snapshot-copied to the project record on acceptance
+**Presentation Notes drawer (collapsible, persistent).** A free-text area for notes captured during sales conversations. Visible alongside the calculator so the admin can jot things down without losing context. Auto-saves. Internal-only.
 
 **Action bar at bottom:**
 - Save Draft
 - Cancel
-- Open Presentation (opens presentation window in new tab; only enabled after first save)
+- Preview Presentation (opens presentation in a new window — see workflow 06)
 - Clone Proposal
-
-## Two-Window Workflow
-
-The calculator/admin window and the presentation window are designed to work together:
-
-- **Calculator window** (this view) — stays on the admin's screen, where they edit
-- **Presentation window** (`/p/[opportunity-token]/`) — opens in a new tab, gets shared on Zoom
-- When admin saves edits in the calculator, the presentation window auto-syncs within seconds (polling-based)
-- See `06-workflow-presentation-and-disposition.md` for full details
 
 ## Pricing Snapshot Logic
 
-When proposal is first saved (going from no record to draft):
-1. Read all `pricing_components` rows currently active
+### At proposal creation (first save)
+1. Read all `pricing_components` rows that are referenced in the line items, plus relevant modifiers and configuration
 2. Copy the rate card state into `pricing_snapshot.snapshot_data` (JSON)
 3. Each `proposal_line_item.unit_price_at_snapshot` is set from the snapshot
 4. `proposal.created_at` timestamps the snapshot moment
 5. `proposal.stale_after` = created_at + 90 days
+6. `pricing_snapshot.is_locked` = false (mutable during draft)
 
-From this point forward:
-- All edits to this proposal use snapshot rates, not live rates
-- Adding a new line item later in the draft? Snapshot rate applies (snapshot includes the full rate card at creation time, even for components not initially selected).
-- All change orders against this proposal (post-acceptance) use snapshot rates
-- Live `pricing_components` can change freely with no impact on this proposal
-- To get fresh rates: clone the proposal
+### During draft editing
+- Adding a line item: uses the snapshot's recorded rate for that component (NOT the current `pricing_components` rate)
+- Changing quantity: recalculates line total from snapshot rate
+- Removing a line item: simple deletion
+- Live `pricing_components` rate changes do NOT affect this proposal's calculations
+- The snapshot's `snapshot_data` is updated to reflect current line items, but the rates within it stay locked to the original creation moment
+
+### Why this works
+The original quote you showed the prospect at $X stays at $X. If a prospect says "drop the AI module," you remove it — the remaining line items keep their original rates. No surprises, no inconsistencies.
+
+### To get fresh rates
+Click "Clone Proposal." A new proposal is created with a fresh snapshot from current `pricing_components`. The old proposal is preserved (status = superseded if it was draft).
+
+### At opportunity acceptance
+- `pricing_snapshot.is_locked` = true
+- Snapshot becomes fully immutable
+- All future change orders use this snapshot
 
 ## Cloning a Proposal
 
 **Trigger:** Admin clicks "Clone Proposal" on any proposal.
 
 **Behavior:**
-1. New proposal record created in `draft` status
+1. New proposal record created
 2. Line items copied from source
 3. **Pricing refreshed:** each line item's unit price is updated from current `pricing_components`
 4. New pricing snapshot taken with current rates
 5. Totals recalculated
 6. `cloned_from_proposal_id` set on new proposal
-7. Source proposal: if draft, status set to `superseded`. If accepted, source stays accepted (clones don't undo acceptance — they create a parallel proposal).
-8. Presentation notes carried over (admin can edit/extend; they're copied, not shared).
+7. Source proposal status set to `superseded` if it was draft (if accepted, it stays accepted — clones don't undo acceptance)
+8. Presentation notes copied from source (you can edit them on the clone independently)
 
 Clones are typically used:
-- When a draft proposal goes stale (>90 days) and pricing has moved
-- When major scope changes warrant a fresh agreement instead of a change order (rare — usually you'd use a change order)
+- When a proposal goes stale (>90 days) and pricing has moved
+- When major scope changes warrant a fresh agreement instead of a change order
 - When the same opportunity needs to be re-presented with updated economics
 
 ## 90-Day Staleness Behavior
@@ -157,15 +146,17 @@ Stale draft proposals:
 - Can still be presented (but with a warning)
 - System prompts: "This proposal is over 90 days old. Clone with current pricing?"
 
-Accepted proposals are never "stale" — they're locked into the engagement permanently.
+Accepted proposals are never "stale" — they're locked into the engagement.
 
 ## Proposal Statuses
 
-- `draft` — being built, freely editable, can still be presented and edited
-- `sent` — presented to client (link shared / presentation given); still in draft underneath — informational status
-- `accepted` — client accepted via disposition action. **Scope and pricing now immutable.** Changes happen only via signed change orders.
-- `superseded` — replaced by a clone (draft only)
+- `draft` — being built, freely editable
+- `sent` — presented to client (link shared / presentation given)
+- `accepted` — client accepted via disposition action; snapshot locked, scope frozen
+- `superseded` — replaced by a clone
 - `declined` — client declined via disposition
+
+**State transitions:** `draft ↔ sent` is freely back-and-forth as you re-present. `draft/sent → accepted` is one-way and locks the proposal. `draft/sent → superseded` happens on clone. `draft/sent → declined` happens via disposition.
 
 ## Setup vs Monthly Components
 
@@ -184,54 +175,37 @@ During building, the admin sees:
 - All line items with rates
 - Modifiers and margins
 - Internal cost math
-- Presentation notes (admin-only)
-- Internal notes (admin-only)
+- Presentation notes drawer
 
-When rendered into a presentation (see 06), the client sees:
+When rendered into a presentation (workflow 06), the client sees:
 - Outcome-grouped descriptions
 - Package label (if applicable)
 - Setup total
 - Monthly total
 - Plain-language "what's included"
 - No per-component pricing breakdowns visible by default
-- No internal notes, no presentation notes
+- **Never sees presentation notes** (those are internal)
 
 The pricing page of the presentation has a configurable display setting:
 - Summary only (default)
 - Categorical breakdown (group line items by category, show subtotals)
 - Full line items (rarely used, only for clients who specifically want detail)
 
-## Presentation Notes (captured during sales)
+## Presentation Notes
 
-**Purpose:** Capture context that emerges during sales conversations — client requirements, expectations, constraints, soft factors that matter for delivery.
+**What they are:** free-text notes captured on a proposal during the sales conversation. Things the prospect said, context that matters for delivery, requirements implied but not in the scope, relationship details.
 
-**Where it lives:** A `presentation_notes` text field on the proposal record. Free-text, freely editable.
+**Where they live:** `proposal.presentation_notes` field, free text.
 
-**Where admin sees it:**
-- Persistent notes strip in the calculator UI (always visible while editing)
-- Section on the opportunity detail view
-- Editable anytime while proposal is draft
-- Still editable post-acceptance (administrative metadata; audit-logged) but the project's snapshot was already taken
+**Where they appear:**
+- In the calculator's notes drawer (write/edit during call)
+- On the opportunity detail page in admin
+- **Not in the presentation window** — client never sees them
+- **Not in the portal** — client never sees them
 
-**Where it does NOT appear:**
-- In the presentation window (client-facing) — never
-- In any document sent to the client
+**Snapshot to project on acceptance.** When the opportunity is accepted and a project is created (workflow 07), the proposal's presentation_notes are copied to the project as a snapshot. After that copy, the two fields are independent. The project's notes can grow during delivery without affecting the proposal record.
 
-**Lifecycle on acceptance:**
-- At the moment Accepted is clicked, a snapshot copy is written to `project.presentation_notes`
-- From that point on, the proposal's notes and the project's notes are independent
-- Edits to the proposal's notes after acceptance don't propagate to the project (audit-logged on proposal)
-- The project record can have its own ongoing notes in a separate `delivery_notes` field
-
-## What Happens at Acceptance (Forward Reference)
-
-When admin clicks Accepted on the disposition (see 06 and 07):
-- Proposal status → `accepted`
-- Pricing snapshot becomes fully immutable
-- Line items become immutable
-- Project record is created from the opportunity, with `presentation_notes` snapshot-copied from the proposal
-- Change orders become available (post-acceptance only)
-- Direct edits to scope/pricing on the proposal are blocked from this point
+**Carry forward on clone.** When a proposal is cloned, presentation notes carry forward to the clone (typical case: you cloned because pricing went stale, but the conversation context is still valuable).
 
 ## Out of Scope (v1)
 
@@ -239,4 +213,4 @@ When admin clicks Accepted on the disposition (see 06 and 07):
 - Templated starting points ("start from Audit-Ready Hiring template") — could add later
 - Multi-currency
 - Tax handling beyond a flat tax_rate field on the proposal
-- Multi-author / commenting on presentation notes
+- Versioned history of presentation notes (just one field; edits replace previous content; audit_log captures changes)

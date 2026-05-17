@@ -24,7 +24,7 @@ Bussey and Bussey is a B2B operations and AI services firm. The platform describ
 │  • Public chat endpoint (Claude-powered)                      │
 │  • Admin API (auth required)                                  │
 │  • Portal API (auth required)                                 │
-│  • Presentation data endpoint (token-protected, read-only)    │
+│  • Presentation data endpoint (public, token-protected)       │
 │  • Stripe webhooks                                            │
 │  • Email/notification dispatch                                │
 └──────┬────────────────────────────┬──────────────────────────┘
@@ -47,13 +47,13 @@ Bussey and Bussey is a B2B operations and AI services firm. The platform describ
 ## Three Frontends, One Backend
 
 ### 1. Public Site (`busseyandbussey.com`)
-Eleventy static site. Content-driven. Anonymous. Includes the embedded Claude chat widget. Also serves presentation views at `/p/[token]/`.
+Eleventy static site. Content-driven. Anonymous. Includes the embedded Claude chat widget.
 
 ### 2. Admin App (`busseyandbussey.com/admin` or `admin.busseyandbussey.com`)
-Authenticated internal app for the Bussey team. CRUD for everything: leads, clients, opportunities, proposals, change orders, calling list, etc. Where the calculator lives. Where dispositions are captured. The control plane.
+Authenticated internal app for the Bussey team. CRUD for everything: leads, clients, opportunities, proposals, change orders, calling list, etc. Where the calculator lives. Where dispositions are captured.
 
 ### 3. Client Portal (`busseyandbussey.com/portal` or `portal.busseyandbussey.com`)
-Authenticated app for active clients. First-login walkthrough, signed documents, payment management, change order requests, project status.
+Authenticated app for active clients. First-login walkthrough, signed documents, payment management, change order requests, build status.
 
 All three are served from the same Cloudflare infrastructure and talk to the same Worker API.
 
@@ -69,28 +69,45 @@ Everything else is designed for future Claude integration but operates manually 
 
 ## Key Design Principles
 
-**Acceptance is what locks everything.** Before Accepted is clicked, the proposal is freely editable — it's a draft, not an agreement. Once Accepted is clicked, the proposal becomes the binding agreement: scope and pricing are sacred, contract terms are sacred, and from this point forward changes happen only through signed change orders.
+### Editability
 
-**Three-tier editability post-acceptance:**
-- **Scope and pricing** — immutable, change-order-only
-- **Contract terms** — immutable, amendable via signed change order (zero-impact change orders allowed for corrections)
-- **Administrative fields** (contact info, billing address, internal notes, project status) — always editable, audit-logged, no client signature needed
+**Acceptance is what locks.** Until an opportunity is marked Accepted, its proposal is freely editable — line items, narrative, pricing scope, anything. There is no formal "change order" before acceptance; revisions are just edits.
 
-**Pricing snapshot rates stay at proposal-creation rates** through edits while in draft. To get fresh rates, clone the proposal.
+Once Accepted is clicked, three tiers govern what can change and how:
 
-**Proposals go stale after 90 days.** System flags them and prompts cloning before further work.
+- **Scope and pricing (sacred):** immutable except via signed change order
+- **Contract terms (sacred but amendable):** changes require a signed amendment (functionally a change order with terms-only impact)
+- **Administrative data (freely editable):** contact info, billing address, project status, internal notes — admin edits anytime, with audit_log entries
 
-**Template-driven presentations.** Cover, demo, proposal, pricing — all templated. Content swaps per opportunity.
+### Pricing & Snapshots
+
+**Proposals own their pricing.** When a proposal is created, a pricing snapshot is taken from the live `pricing_components` rate card. While the proposal is in draft, edits use that same snapshot — rates do not refresh from live rates as you edit. The snapshot only becomes truly immutable on acceptance.
+
+**To get fresh pricing, clone.** Cloning a proposal creates a new proposal with a fresh snapshot from current rates. The old proposal remains untouched.
+
+**90-day staleness applies to drafts.** After 90 days, drafts are flagged stale and prompt for cloning. Accepted proposals are locked into the engagement and don't go stale.
+
+### Presentation & Sales Flow
+
+**Template-driven presentations.** Cover, demo, proposal, pricing, disposition — all templated. Content swaps per opportunity.
 
 **Demos are manual.** Built by hand in the repo under a per-opportunity folder convention. Embedded into the presentation.
+
+**Two-window presentation mode.** Admin has two browser windows during a sales call: one with the presentation (shared on Zoom), one with the admin/editor (private). Edits in admin push to the presentation window via live sync (polling).
+
+**Presentation notes captured during sales.** Each proposal has a presentation notes field. Notes are written during the sales conversation and copied to the project when activation completes. Internal-only — never visible to client.
+
+### Acceptance & Documents
 
 **Click-to-accept is sufficient.** No DocuSign. Inline signature capture inside the portal with typed name, timestamp, IP, full audit trail.
 
 **Stripe is the payment processor.** Setup fee (one-time) + monthly subscription. PayPal not in v1.
 
-**Change orders are additive/subtractive deltas, post-acceptance only.** They modify the active engagement and stack on top of the base proposal.
+### Change Orders (Post-Acceptance Only)
 
-**Two-window presentation mode.** The presentation window is read-only, public-tokened, and shared on Zoom. The admin window has all controls and editing. Live polling sync pushes edits from admin to presentation within seconds.
+**Change orders are additive/subtractive deltas applied to an accepted proposal.** They use the parent proposal's locked pricing snapshot. They require client signature in the portal.
+
+There are no pre-acceptance change orders. Pre-acceptance revisions are just edits to the draft proposal.
 
 ## Glossary
 
@@ -98,15 +115,15 @@ Everything else is designed for future Claude integration but operates manually 
 |---|---|
 | **Lead** | Top-of-funnel record. Possibly incomplete. From chat or manual entry. |
 | **Client** | A confirmed business entity. Created by converting a lead or manually. |
-| **Opportunity** | A specific deal under a client. Has one base proposal + 0..n change orders (post-acceptance only). |
-| **Proposal** | A priced scope document. Freely editable while in draft. Locks at acceptance. |
-| **Presentation Notes** | Free-text notes captured during the sales conversation, attached to the proposal. Copied to the project on acceptance. |
-| **Pricing Snapshot** | Frozen copy of rate card + components used for a specific proposal. Rates set at proposal creation, stay through edits. Refresh by cloning. |
-| **Presentation** | Template-driven multi-page experience: cover, demo, proposal, pricing. Read-only client-facing view. |
+| **Opportunity** | A specific deal under a client. Has one base proposal + 0..n change orders post-acceptance. |
+| **Proposal** | A priced scope document. Locks a pricing snapshot at creation; the snapshot becomes immutable on opportunity acceptance. |
+| **Pricing Snapshot** | Frozen copy of rate card + components used for a specific proposal. Mutable during draft, locked on acceptance. |
+| **Presentation** | Template-driven multi-page experience: cover, demo, proposal, pricing. Token-protected URL. |
+| **Presentation Notes** | Free-text notes captured on a proposal during the sales conversation. Copied to the project at activation. |
 | **Demo** | Manually built static front-end mockup, embedded into a presentation. |
-| **Disposition** | The outcome captured by admin at the end of a presentation (Accepted / Follow-Up / Changes Requested / Declined). Captured in admin, not in the presentation window. |
-| **Activation** | The flow triggered by Accepted disposition: account creation → credentials → walkthrough → project. |
-| **Project** | The post-activation engagement. Inherits notes from the proposal. Where delivery work tracks. |
+| **Disposition** | The outcome captured for an opportunity after presenting (Accepted / Follow-Up / Changes Requested / Declined). Captured in admin, not in the presentation. |
+| **Activation** | The flow triggered by Accepted disposition: project creation → account creation → credentials → walkthrough. |
+| **Project** | The post-acceptance delivery container. Created when an opportunity is accepted. Carries forward presentation notes and links back to the proposal. |
 | **Portal Walkthrough** | First-login sequence: password change → contract sign → payment setup → done. |
-| **Change Order** | Additive/subtractive amendment to an accepted opportunity. Uses the proposal's locked snapshot. Post-acceptance only. |
+| **Change Order** | Additive/subtractive amendment to an accepted opportunity. Uses the proposal's locked snapshot. Signed by client in portal. |
 | **Active Client** | A client who has completed activation. Has portal access, ongoing billing, change-order capability. |

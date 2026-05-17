@@ -1,8 +1,8 @@
-# 09 — Workflow: Change Orders
+# 09 — Workflow: Change Orders (Post-Acceptance Only)
 
-Change orders are how scope and pricing evolve on an **accepted** opportunity. They are additive/subtractive deltas, not new proposals. They always use the pricing from the parent proposal's locked snapshot.
+Change orders are how scope and pricing evolve **after** an opportunity has been accepted. They are additive/subtractive deltas to the locked proposal, always using the proposal's locked pricing snapshot.
 
-**Change orders only exist post-acceptance.** Before acceptance, the proposal is freely editable and revisions happen by editing the draft directly. Once the opportunity is Accepted, the proposal becomes a binding agreement and any further changes flow through this change order process.
+**Change orders exist only post-acceptance.** Pre-acceptance revisions are direct edits to the draft proposal (see workflow 06, "Pre-Acceptance Revisions").
 
 ## Actors
 - Admin user (drafts and proposes change orders)
@@ -19,12 +19,10 @@ Change orders are how scope and pricing evolve on an **accepted** opportunity. T
 
 **Lifecycle states:**
 - `draft` — admin is building it, not visible to client
-- `proposed` — sent to client for approval
+- `proposed` — sent to client for approval in portal
 - `approved` — client approved it; applied to engagement
 - `rejected` — client rejected
 - `withdrawn` — admin pulled it before approval
-
-**Always requires client signature.** Approval is captured via inline signature in the portal, similar to the original contract.
 
 ## Flow
 
@@ -78,25 +76,17 @@ On rejection:
   • No Stripe changes
 ```
 
-## Use Cases for Change Orders
-
-- **Scope additions:** client wants a new module (scheduling, integration, etc.)
-- **Scope removals:** client wants to drop something originally included
-- **Term corrections:** typo in legal name, wrong billing address on contract — use a zero-impact change order with the corrected text as a signed amendment. Setup_delta and monthly_delta both 0; the value is in the audit trail and signed document.
-- **Pricing adjustments:** rare, but admin-initiated discount or rate adjustment formalized via change order
-
 ## Change Order Document
 
 When rendered for client review, the change order shows:
 - Header: "Change Order #N for [Opportunity Name]"
 - Reason / context (from admin's notes)
-- Clear sections: "Adding" and "Removing" (skipped if zero-impact correction)
+- Clear sections: "Adding" and "Removing"
 - Each line item: description, quantity, line total impact
 - Bottom summary:
   - Setup fee change: +$X / -$Y / no change
   - Monthly subscription change: +$X / -$Y / no change
   - Effective date for monthly changes
-- For term corrections: the corrected language displayed clearly with before/after
 - Signature line: typed legal name
 - Approve / Reject buttons
 
@@ -123,7 +113,19 @@ When rendered for client review, the change order shows:
 
 - If Stripe charge fails (insufficient funds, expired card): change order status reverts to `proposed`, client notified, admin notified
 - Client must update payment method and re-approve, OR admin re-issues the change order
-- Change order is not considered final until Stripe successfully processes the financial side (for non-zero deltas)
+- Change order is not considered final until Stripe successfully processes the financial side
+
+## Amendments (Terms-Only Change Orders)
+
+If a contract term needs to change (e.g., clarify scope wording, fix a typo, adjust a governing law clause) without affecting price or scope:
+
+- Created as a change order with no line items and `setup_delta = 0`, `monthly_delta = 0`
+- Document body contains the amended text and what it replaces
+- Goes through the same propose → sign → approve flow as a regular change order
+- No Stripe action on approval
+- Recorded as an amendment document linked to the opportunity
+
+This is the mechanism for the "sacred but amendable" tier in the three-tier editability model.
 
 ## Visibility in Documents Tab
 
@@ -154,4 +156,3 @@ A client can have multiple change orders in different states simultaneously. The
 - Bulk change order operations
 - Templated change orders ("add scheduling module" as a saved bundle) — could add later
 - Change order analytics / reporting
-- Client-side draft change orders (clients can request changes via the request form; only admin creates formal change orders)
