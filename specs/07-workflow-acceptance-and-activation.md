@@ -1,19 +1,19 @@
 # 07 — Workflow: Acceptance & Activation
 
-The handoff from sales to active client. Admin clicks Accepted on the disposition page. System creates the client portal account, generates credentials, and prepares everything the client needs for their first login.
+The handoff from sales to active client. Admin clicks Accepted on the disposition (in the admin window). System creates the client portal account, generates credentials, creates the project record (with snapshot-copied presentation notes), and prepares everything the client needs for their first login.
 
 ## Actors
 - Admin user (clicks Accepted, hands off credentials)
-- System (orchestrates account creation, document generation, snapshot lock)
+- System (orchestrates account creation, project creation, document generation, snapshot lock)
 
 ## Trigger
 
-Admin clicks 🟢 Accepted button on the presentation disposition page.
+Admin clicks 🟢 Accepted button on the opportunity detail page in admin (not in the presentation window — dispositions live in admin).
 
 ## Flow
 
 ```
-Admin clicks Accepted
+Admin clicks Accepted on opportunity page
         │
         ▼
 Confirmation modal: "Activate [Client Name] for [Opportunity Name]?"
@@ -27,8 +27,14 @@ System performs activation (transactional — all or nothing):
   • opportunity.status → accepted
   • opportunity.accepted_at → now
   • proposal.status → accepted
-  • pricing_snapshot locked (was already locked, but flagged immutable)
-  • Generate the contract document from template + proposal data + change orders
+  • pricing_snapshot now fully immutable
+  • line items now fully immutable
+  • Generate the contract document from template + proposal data
+  • Create project record:
+      - linked to opportunity and client
+      - presentation_notes snapshot-copied from proposal.presentation_notes
+      - status = kickoff
+      - delivery_notes initialized (empty)
   • Create portal_account for client.primary_contact_email
   • Generate cryptographically secure temporary password
   • Mark portal_account.must_change_password = true
@@ -59,9 +65,23 @@ Shows the admin a summary before committing:
 - Opportunity name
 - Setup total
 - Monthly subscription amount
-- Any pre-acceptance change orders included
-- Warning text: "This will lock the pricing and create the portal account. The client will need their login to complete activation."
+- Warning text: "This will lock the proposal scope and pricing, create the project record, and create the portal account. The client will need their login to complete activation. After this, scope and pricing changes require a signed change order."
 - [Cancel] [Confirm — Activate]
+
+## What Becomes Immutable at Acceptance
+
+- Proposal scope (line items)
+- Proposal pricing (totals, line item amounts, snapshot rates)
+- Contract terms as rendered into the contract document
+
+From this point, only change orders can modify these.
+
+## What Stays Editable After Acceptance
+
+- Client administrative data (contact info, billing address, internal notes on client)
+- Proposal's presentation_notes and internal_notes (audit-logged; doesn't affect project since project has its own snapshot)
+- Project's delivery_notes and project status fields
+- Calling list, leads, all unrelated entities
 
 ## Contract Generation
 
@@ -71,13 +91,22 @@ On acceptance, the system generates the contract document:
   - Client info (legal company name, address, primary contact)
   - Opportunity details (name, scope summary)
   - Setup fee and monthly subscription amounts
-  - Pre-acceptance change orders folded into the scope/pricing
   - Term language, change order clause, governing law, etc.
   - Signature points: "Sign here" (legal name), "Initial here" (multiple locations on the contract)
 - Stored as a contract record linked to the opportunity
 - Rendered for the client during the portal walkthrough
 
 The template itself is stored in the repo (under `/templates/contract/master.md` or similar) and should be lawyer-reviewed before first use.
+
+## Project Creation
+
+A `project` record is created at acceptance, linked to the opportunity:
+- `presentation_notes`: snapshot copy of proposal.presentation_notes at this moment. Independent from this point forward.
+- `delivery_notes`: empty, grows during build
+- `status`: kickoff
+- `name`: inherited from opportunity
+
+The project becomes the working surface for delivery (separate from the proposal which is locked and historical-with-respect-to-scope).
 
 ## Credentials Handoff
 
@@ -114,6 +143,7 @@ Admin dashboard surfaces pending-activation accounts with time-since-acceptance 
 If a client never completes activation and admin needs to roll back:
 - Admin can manually mark opportunity as `lost` with reason
 - Portal account is disabled
+- Project record marked as canceled/never_started
 - Pricing snapshot stays (historical record)
 - This is an unusual case — most deals that get to "Accepted" complete activation within days
 
@@ -129,5 +159,5 @@ The rationale: don't create payment objects in Stripe until the client has actua
 
 - Co-signers / multiple required signatories on the client side
 - Counter-signature by Bussey (handled by the platform existing — your acceptance is implicit)
-- Custom contract amendments at acceptance time (use change orders instead)
+- Custom contract amendments at acceptance time (use change orders post-acceptance)
 - Multi-step internal approval before activation

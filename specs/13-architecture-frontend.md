@@ -9,7 +9,7 @@ Three distinct frontend experiences served from one Cloudflare Pages deployment,
 | Public site | `/` (root) | Eleventy (static) | None |
 | Admin app | `/admin/*` or `admin.busseyandbussey.com` | TBD (SPA) | admin_user session |
 | Client portal | `/portal/*` or `portal.busseyandbussey.com` | TBD (SPA) | portal_account session |
-| Presentation | `/p/:token/*` | Eleventy or hybrid | None (token-protected) |
+| Presentation | `/p/:token/*` | Eleventy + client-side data fetch | None (token-protected) |
 | Demos | `/p/:token/demo/*` | Static (hand-built) | None (token-protected) |
 
 ## Public Site (Eleventy)
@@ -37,6 +37,8 @@ Three distinct frontend experiences served from one Cloudflare Pages deployment,
 /blog/:slug/              → Individual blog post
 /about/                   → About the company
 /contact/                 → Contact page
+/p/:token/                → Presentation (token-protected, dynamic shell)
+/p/:token/demo/           → Demo (static, hand-built)
 ```
 
 ### Content Collections
@@ -92,10 +94,11 @@ My lean: SvelteKit or Astro with Svelte islands. Light, fast, good DX. Both depl
 /admin/leads/:id/             → Lead detail
 /admin/clients/               → Client list
 /admin/clients/:id/           → Client detail (tabs)
-/admin/clients/:id/opportunities/:opp_id/  → Opportunity detail
+/admin/clients/:id/opportunities/:opp_id/  → Opportunity detail (includes disposition buttons)
 /admin/clients/:id/opportunities/:opp_id/proposal/    → Calculator / proposal builder
-/admin/clients/:id/opportunities/:opp_id/presentation → Presentation preview / link
-/admin/clients/:id/opportunities/:opp_id/change-orders/:co_id/ → Change order builder
+/admin/clients/:id/opportunities/:opp_id/change-orders/:co_id/ → Change order builder (post-acceptance only)
+/admin/projects/                          → Active projects list
+/admin/projects/:id/                      → Project detail (kickoff, status, notes)
 /admin/pricing/               → Pricing components management
 /admin/calling-list/          → Calling list dashboard
 /admin/calling-list/today/    → Today's cards
@@ -112,12 +115,27 @@ My lean: SvelteKit or Astro with Svelte islands. Light, fast, good DX. Both depl
 - Inline editing where reasonable
 - Clear status indicators throughout (badges, colored states)
 - Sticky action bars (don't make admins scroll to find Save)
-- Confirmation modals for destructive or irreversible actions
+- Confirmation modals for destructive or irreversible actions (acceptance especially)
 - Search bar global (cmd/ctrl+K opens command palette to jump anywhere)
 
 ### Calculator UI
 
-Three-pane layout (left palette, middle line items, right totals) as specified in 05-workflow-opportunity-and-calculator.md. Drag-to-add or click-to-add components. Live recalculation. Save Draft / Preview / Clone buttons in action bar.
+Three-pane layout (left palette, middle line items, right totals) plus persistent presentation-notes strip, as specified in 05-workflow-opportunity-and-calculator.md. Drag-to-add or click-to-add components. Live recalculation. Save Draft / Open Presentation / Clone buttons in action bar.
+
+### Opportunity Detail Page (Disposition Controls)
+
+Lives at `/admin/clients/:id/opportunities/:opp_id/`. Includes:
+- Opportunity summary (name, status, totals, dates)
+- Link to current proposal / calculator
+- **Open Presentation button** (opens `/p/[token]/` in a new tab for screen-sharing)
+- **Disposition action panel** (visible when opportunity is in `open` or `proposed` status):
+  - 🟢 Accepted → confirmation modal → activation flow
+  - 🟡 Follow-Up Needed → date + notes modal
+  - 🟠 Changes Requested → notes modal, redirects back to calculator
+  - 🔴 Declined → reason + notes modal
+- Presentation notes strip (read/edit, same field as in calculator)
+- Activity log / audit summary
+- Change orders panel (post-acceptance only)
 
 ## Client Portal
 
@@ -160,12 +178,26 @@ Full-page sequential flow, progress indicator at top showing 4 steps. Each step 
 
 Presentations are public-readable (token-protected) and template-driven. Built into the Eleventy site at `/p/:token/` routes.
 
-**Implementation options:**
-1. **Dynamic via Worker:** Worker handles `/p/:token/*` routes, fetches opportunity data from D1, renders into a presentation template, returns HTML. Easier to keep up-to-date, supports edits without rebuild.
-2. **Static via Eleventy build:** Each opportunity triggers an Eleventy rebuild that generates `/p/:token/*` pages. Faster runtime, but rebuilds on every opportunity edit.
-3. **Hybrid:** Eleventy template + client-side data fetch from Worker for dynamic content.
+**Implementation: hybrid.** Eleventy generates the presentation shell at `/p/:token/`. Client-side JS fetches the latest opportunity data from `GET /p/:token/data` on the Worker. Demos are pure static files at `/p/:token/demo/`.
 
-**Recommendation: Hybrid.** Eleventy generates the presentation shell at `/p/:token/`. Client-side JS fetches the latest opportunity data from `/p/:token/data`. Demos are pure static files at `/p/:token/demo/`. This avoids rebuilds for every proposal edit, keeps demos as simple static files, and makes presenting fast.
+This avoids rebuilds for every proposal edit, keeps demos as simple static files, and makes presenting fast.
+
+### Live Sync Mechanism
+
+The presentation window stays in sync with admin edits via polling:
+
+- On load: fetch initial data, render presentation, record `last_updated_at` timestamp
+- Every 3-5 seconds: poll `GET /p/:token/data?since=[last_updated_at]`
+- Response is either:
+  - `204 No Content` (no changes since last poll) — do nothing
+  - `200 OK` with updated data — re-render affected sections in place, update timestamp
+- Re-rendering is reactive (framework handles DOM updates) — no full page reload, no scroll loss
+- Demo iframe is not reloaded automatically (demos are static files; admin manually reloads iframe if a demo was edited mid-call — rare)
+- Subtle visual indicator on update: "Updated" badge top-right of the presentation, fades after 2 seconds
+
+**Polling interval is configurable.** 3-5 seconds is the default sweet spot for sales presentations.
+
+**Polling backoff:** if the tab is hidden (Page Visibility API), poll interval increases to 30 seconds to save resources.
 
 ### Presentation Pages
 
@@ -177,9 +209,34 @@ Each presentation = a multi-page experience with navigation:
 - Timeline
 - Investment
 - Next Steps
-- Disposition (admin-only UI on top)
+
+(No disposition page in the presentation — dispositions live in admin.)
 
 Keyboard navigation: left/right arrows, esc to dashboard. Mouse-friendly nav controls. Mobile-responsive but designed primarily for presenting.
+
+### Public Presentation Endpoint
+
+`GET /p/:token/data`
+
+Returns JSON shape:
+```
+{
+  last_updated_at: ISO timestamp,
+  client: { company_name, primary_contact_name },
+  opportunity: { name, presenter_name, date },
+  proposal: {
+    narrative_challenge, narrative_solution, key_capabilities,
+    setup_total, monthly_total,
+    pricing_display_mode,
+    line_items: [...],  // visibility per display_mode
+    demo_enabled, demo_url
+  },
+  timeline: { ... },
+  next_steps: { ... }
+}
+```
+
+No internal notes, no presentation notes, no admin metadata exposed. This endpoint is the public contract for what the presentation can show.
 
 ## Demos
 
@@ -218,6 +275,7 @@ This is what makes future demos fast: admin grabs from the shared library and as
 - Server-side is source of truth; client state is cache
 - Standard fetch + state library appropriate to framework choice
 - Optimistic updates where appropriate; full reconciliation on save
+- For admin: after save, the calculator's state and the opportunity's `last_updated_at` are both updated; live presentation polling picks up the change
 - Don't over-engineer state management for v1
 
 ## Performance Targets
@@ -225,7 +283,7 @@ This is what makes future demos fast: admin grabs from the shared library and as
 - Public site: Lighthouse 95+ across the board
 - Admin: TTI <2s on broadband, smooth interactions
 - Portal: TTI <2s, especially walkthrough must feel snappy
-- Presentation: opens fast (subsecond), smooth navigation, no jank
+- Presentation: opens fast (subsecond), smooth navigation, no jank, sync updates feel near-instant
 - Mobile-responsive everywhere; mobile-first on portal
 
 ## Out of Scope (v1)
@@ -236,3 +294,4 @@ This is what makes future demos fast: admin grabs from the shared library and as
 - A/B testing infrastructure
 - Detailed analytics on admin/portal usage
 - Custom theming per client
+- Push-based sync (WebSockets, SSE) for presentation — polling is sufficient

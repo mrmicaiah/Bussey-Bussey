@@ -8,7 +8,7 @@ Level 2 schema sketch. Field types and indexes filled in at implementation time.
 chat_session ──┐
                ├──> lead ──> client ──┬──> opportunity ──> proposal ──> pricing_snapshot
 chat_message ──┘                       │                       │
-                                       │                       └──> change_order (0..n)
+                                       │                       └──> change_order (0..n, post-acceptance only)
                                        │
                                        └──> portal_account ──> portal_session
                                                   │
@@ -17,6 +17,8 @@ chat_message ──┘                       │                       │
                                                            │
                                                            └──> stripe_subscription
                                                            └──> stripe_invoice
+
+opportunity ──> project (created on acceptance, inherits presentation notes)
 
 calling_list_item ──> calling_log
 pricing_components (live rate card, separate from snapshots)
@@ -48,7 +50,7 @@ notification (cross-entity)
 ### opportunity
 - A specific deal for a client
 - Key fields: client_id, name (e.g., "Audit-Ready Hiring System"), status (open / proposed / accepted / lost / paused), value_setup, value_monthly, created_at, accepted_at, lost_reason, owner_user_id
-- Linked to: proposal (1..n — usually 1 base, but clones supported), change_order (0..n)
+- Linked to: proposal (1..n — usually 1 base, but clones supported), change_order (0..n, post-acceptance), project (0..1)
 
 ### pricing_components (live rate card)
 - The current rate card. Editable by admin at any time.
@@ -57,26 +59,36 @@ notification (cross-entity)
 
 ### proposal
 - A priced scope document tied to an opportunity
-- Key fields: opportunity_id, name, status (draft / sent / accepted / superseded / declined), setup_total, monthly_total, created_at, sent_at, accepted_at, stale_after (created_at + 90 days), cloned_from_proposal_id (nullable), notes
-- A proposal locks its pricing snapshot at creation. After creation, the snapshot does not change.
+- Key fields: opportunity_id, name, status (draft / sent / accepted / superseded / declined), setup_total, monthly_total, created_at, sent_at, accepted_at, stale_after (created_at + 90 days), cloned_from_proposal_id (nullable), presentation_notes (text), internal_notes (text)
+- **While in `draft` status:** all fields freely editable. Line items can be added, removed, modified. Snapshot rates are set at creation and stay through edits.
+- **Once status = `accepted`:** scope (line items), pricing (totals, line item amounts), and contract terms are immutable. Changes require a change_order. Administrative metadata (presentation_notes, internal_notes) remains editable; edits are audit-logged.
 - Linked to: pricing_snapshot (1, exclusive), proposal_line_item (1..n), change_order (0..n)
 
 ### pricing_snapshot
 - Frozen copy of rates and modifiers used for a specific proposal
-- Key fields: proposal_id, snapshot_data (JSON: all components + rates + modifiers as they existed at snapshot time), snapshot_at
-- Created once, never modified.
+- Key fields: proposal_id, snapshot_data (JSON: all components + rates + modifiers as they existed at proposal creation), snapshot_at
+- Set at proposal creation. Rates remain stable through draft edits (Answer A behavior).
+- Becomes fully immutable when parent proposal status = accepted.
+- To get fresh rates: clone the proposal.
 
 ### proposal_line_item
 - A single scope item on a proposal
 - Key fields: proposal_id, component_code (references pricing_components.code), quantity, unit_price_at_snapshot, line_total, description_override (nullable)
+- Editable while parent proposal is in draft. Immutable when parent is accepted.
+
+### project
+- Post-activation engagement record. Created automatically when an opportunity is Accepted.
+- Key fields: opportunity_id, client_id, name (inherited from opportunity), status (kickoff / discovery / build / testing / handoff / live / ongoing / complete), presentation_notes (snapshot-copied from proposal at creation), delivery_notes (separate field, grows during build), current_phase_note, next_milestone, last_status_update_at, created_at
+- The `presentation_notes` field is a snapshot copy at activation time. Edits to the proposal's notes after acceptance don't propagate here.
+- `delivery_notes` is independent and editable throughout the engagement.
 
 ### change_order
-- An additive/subtractive amendment to a proposal
-- Key fields: proposal_id, name, status (draft / proposed / approved / rejected / withdrawn), reason, setup_delta, monthly_delta, created_at, proposed_at, approved_at, approved_by_portal_account_id (nullable for pre-acceptance)
-- Pre-acceptance change orders: created and approved by admin before opportunity acceptance
-- Post-acceptance change orders: created by admin, approved by client in portal
+- An additive/subtractive amendment to an accepted opportunity
+- Created only after parent opportunity reaches `accepted` status.
+- Key fields: proposal_id, name, status (draft / proposed / approved / rejected / withdrawn), reason, setup_delta, monthly_delta, created_at, proposed_at, approved_at, approved_by_portal_account_id
+- Uses pricing from parent proposal's locked snapshot. No fresh pricing unless the proposal is cloned (rare post-acceptance).
+- Always requires client signature in portal to take effect.
 - Linked to: change_order_line_item (1..n, each can be add or remove)
-- Uses pricing from parent proposal's snapshot (no fresh pricing unless proposal is cloned)
 
 ### change_order_line_item
 - A single change within a change order
@@ -120,7 +132,7 @@ notification (cross-entity)
 ### audit_log
 - System-wide event log
 - Key fields: actor_type (admin_user / portal_account / system), actor_id, action, entity_type, entity_id, changes (JSON diff), ip_address, created_at
-- Used for: contract signatures, change order approvals, status transitions, anything that needs defensible history
+- Used for: contract signatures, change order approvals, status transitions, post-acceptance administrative field edits, anything that needs defensible history
 
 ### notification
 - Outbound notification record (email/SMS to internal team or clients)
@@ -134,27 +146,66 @@ notification (cross-entity)
 
 1. **Lead → Client conversion** copies relevant fields and sets `client.origin_lead_id`. Lead status becomes `converted`. Lead is not deleted.
 2. **Client → Opportunity** is one-to-many. A client can have multiple opportunities over time.
-3. **Opportunity → Proposal** is one-to-many, but typically one active base + clones for major refreshes. Status `superseded` marks an old proposal replaced by a clone.
-4. **Proposal → Pricing Snapshot** is one-to-one and immutable.
-5. **Proposal → Change Order** is one-to-many. Change orders are scoped to a proposal.
-6. **Client → Portal Account** is created only on Accepted disposition.
-7. **Portal Account → Walkthrough State** drives the first-login experience.
-8. **Stripe Subscription** belongs to the opportunity. Change orders modify it.
+3. **Opportunity → Proposal** is one-to-many. Status `superseded` marks an old proposal replaced by a clone.
+4. **Proposal → Pricing Snapshot** is one-to-one. Snapshot rates stable through draft edits; immutable after acceptance.
+5. **Proposal → Change Order** is one-to-many, post-acceptance only.
+6. **Opportunity → Project** is one-to-one, created at acceptance. Project inherits presentation_notes as a snapshot copy.
+7. **Client → Portal Account** is created only on Accepted disposition.
+8. **Portal Account → Walkthrough State** drives the first-login experience.
+9. **Stripe Subscription** belongs to the opportunity. Change orders modify it.
 
 ## Pricing Lifecycle Summary
 
 ```
-pricing_components (live, editable) ──► [proposal created] ──► pricing_snapshot (frozen)
-                                                                       │
-                                                                       ▼
-                                                       All change_orders for this proposal
-                                                       use this snapshot's rates.
-                                                       
-                                                       To get fresh pricing: clone proposal.
+pricing_components (live, editable)
+        │
+        ▼
+[proposal created]
+        │
+        ▼
+pricing_snapshot (rates set; stays through draft edits)
+        │
+        │   ← Proposal edits during draft: line items change, but rates from this snapshot remain.
+        │     To get fresh rates: clone the proposal.
+        │
+        ▼
+[opportunity Accepted]
+        │
+        ▼
+pricing_snapshot (now fully immutable)
+        │
+        │   ← All change_orders for this proposal use this snapshot's rates, forever.
+        │
+        ▼
+[change orders applied over time]
 ```
+
+## What's Editable When
+
+**Draft proposal (status = draft):**
+- All scope and line items: editable
+- Pricing (uses snapshot rates): recalculates on edit
+- Presentation notes, internal notes: editable
+- Contract terms (template-driven): editable via template variables
+
+**Accepted proposal (status = accepted):**
+- Scope and line items: **immutable**. Change-order-only.
+- Pricing totals: **immutable**. Change-order-only.
+- Contract terms: **immutable**. Amendable via signed change order (allow zero-impact change orders for corrections).
+- Presentation notes, internal notes: editable, audit-logged.
+- Administrative client data (contact, billing address): editable on the client record, audit-logged.
+- Project status, delivery notes (on the project record): editable freely.
 
 ## 90-Day Staleness
 
 - `proposal.stale_after` = `created_at` + 90 days
-- After stale_after: UI flags proposal as stale, requires clone before new change orders
+- After stale_after: UI flags proposal as stale on draft proposals, prompts cloning
 - Accepted proposals are not subject to staleness (they're locked into the engagement)
+
+## Presentation Notes Lifecycle
+
+- Captured on the proposal during the sales conversation (free-text field)
+- Travel with the proposal: visible on the opportunity, visible during editing
+- **Not visible** in the presentation window or to the client
+- On acceptance: snapshot-copied to the `project.presentation_notes` field
+- After copy: proposal notes and project notes are independent records
