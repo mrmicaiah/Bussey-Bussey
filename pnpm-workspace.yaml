@@ -1,0 +1,6 @@
+packages:
+  - worker
+  - site
+  - admin
+  - portal
+  - shared

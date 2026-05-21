@@ -1,0 +1,41 @@
+# Bussey and Bussey — Worker local secrets
+#
+# Copy this file to `.dev.vars` (same directory as wrangler.toml) and fill in real values.
+# `.dev.vars` is gitignored. NEVER commit secrets.
+#
+# In production, set these with `wrangler secret put <NAME>` instead.
+
+# Anthropic API key for the public chat (Claude Sonnet).
+ANTHROPIC_API_KEY=sk-ant-replace-me
+
+# Stripe live or test secret key (sk_test_... for development).
+STRIPE_SECRET_KEY=sk_test_replace_me
+
+# Stripe webhook signing secret. Used to verify POST /api/webhooks/stripe.
+# In dev: run `stripe listen --forward-to localhost:8787/api/webhooks/stripe`
+# and paste the printed `whsec_...` value here so signature verification
+# matches the events Stripe CLI is forwarding.
+STRIPE_WEBHOOK_SECRET=whsec_replace_me
+
+# Stripe publishable key (pk_test_... in dev). Public by design — sent to
+# the portal frontend via /api/portal/walkthrough/payment-config to mount
+# Stripe Elements.
+STRIPE_PUBLISHABLE_KEY=pk_test_replace_me
+
+# Resend (transactional email) API key.
+RESEND_API_KEY=re_replace_me
+
+# Random 32+ byte secret used to sign session tokens.
+# Generate with: openssl rand -hex 32
+SESSION_SECRET=replace_with_openssl_rand_hex_32
+
+# Comma-separated list of internal email addresses to receive lead/admin notifications.
+ADMIN_NOTIFY_EMAILS=team@example.com
+
+# Environment marker: development | staging | production
+ENV=development
+
+# Where the per-opportunity demo static files are served, used as the iframe base on the presentation.
+# In dev: http://localhost:8080 (Eleventy serves /demos/:token/)
+# In prod: leave empty so the iframe loads same-origin /demos/:token/
+DEMO_URL_BASE=http://localhost:8080

@@ -1,0 +1,10 @@
+<script>
+  // Make the API base + assistant copy available to the chat widget script
+  // without a build step. `apiBase` is empty in production (same-origin) and
+  // points to http://localhost:8787 during dev (set in src/_data/site.js).
+  window.__BUSSEY_CHAT__ = {
+    apiBase: {{ site.apiBase | dump | safe }},
+    cannedGreeting: "Hey — I'm here to help. Are you exploring what Bussey could do for your business, or looking for something specific?"
+  };
+</script>
+<script src="/assets/chat-widget.js" defer></script>

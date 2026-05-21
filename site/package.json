@@ -1,0 +1,17 @@
+{
+  "name": "@bussey/site",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Public Eleventy site for busseyandbussey.com.",
+  "scripts": {
+    "dev": "eleventy --serve --port=8080",
+    "build": "eleventy",
+    "typecheck": "echo 'site: no typecheck (vanilla JS + nunjucks)' && exit 0",
+    "lint": "echo 'site: linter not yet configured' && exit 0"
+  },
+  "dependencies": {
+    "@11ty/eleventy": "^3.0.0",
+    "@11ty/eleventy-plugin-rss": "^2.0.2"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@bussey/shared",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Shared design tokens, components, types, and utilities used across admin, portal, presentation, and demos.",
+  "scripts": {
+    "dev": "echo 'shared: no dev step (consumed by other workspaces)' && exit 0",
+    "build": "echo 'shared: nothing to build yet' && exit 0",
+    "typecheck": "echo 'shared: nothing to typecheck yet' && exit 0",
+    "lint": "echo 'shared: linter not yet configured' && exit 0"
+  }
+}

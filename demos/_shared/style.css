@@ -1,0 +1,59 @@
+/* Shared baseline for per-opportunity demos. Demos live at /demos/[token]/
+ * and import this with <link rel="stylesheet" href="../_shared/style.css">.
+ * Keep this tight — it's intentionally a small starter so demos feel like
+ * Bussey work without dictating their structure. */
+
+:root {
+  --bg: #f7f7f5;
+  --surface: #ffffff;
+  --border: #e3e3df;
+  --text: #1a1a1a;
+  --muted: #6b6b66;
+  --accent: #1f3a5f;
+  --accent-text: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); min-height: 100vh; }
+main { max-width: 1080px; margin: 0 auto; padding: 1.5rem; }
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.7rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+.muted { color: var(--muted); }
+.lead { color: var(--muted); font-size: 1.05rem; }
+
+.hero {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2rem;
+}
+h1 { margin: 0 0 0.8rem; font-size: 1.7rem; font-weight: 600; }
+
+code {
+  background: #ececea;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 0.88em;
+}
+
+/* Common UI shapes you can reuse in a demo. */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
+.btn { display: inline-block; padding: 0.45rem 0.9rem; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; cursor: pointer; }
+.btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.btn.primary:hover { filter: brightness(1.05); }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.04em; }

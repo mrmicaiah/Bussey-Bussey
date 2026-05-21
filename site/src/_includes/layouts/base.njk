@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="{{ site.language }}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% if title %}{{ title }} · {{ site.name }}{% else %}{{ site.name }}{% endif %}</title>
+    <meta name="description" content="{{ description or site.tagline }}" />
+    {# OpenGraph #}
+    <meta property="og:type" content="{% if og_type %}{{ og_type }}{% else %}website{% endif %}" />
+    <meta property="og:title" content="{% if title %}{{ title }} · {{ site.name }}{% else %}{{ site.name }}{% endif %}" />
+    <meta property="og:description" content="{{ description or site.tagline }}" />
+    <meta property="og:url" content="{{ site.url }}{{ page.url }}" />
+    <meta property="og:site_name" content="{{ site.name }}" />
+    <meta name="twitter:card" content="summary" />
+    {# Link to feed for the article + blog pages #}
+    <link rel="alternate" type="application/rss+xml" href="/feed.xml" title="{{ site.name }} — articles" />
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
+    <link rel="stylesheet" href="/assets/style.css" />
+  </head>
+  <body>
+    {% include "partials/header.njk" %}
+    <main>{{ content | safe }}</main>
+    {% include "partials/footer.njk" %}
+    {% include "partials/chat-widget.njk" %}
+  </body>
+</html>

@@ -1,0 +1,130 @@
+name = "bussey-bussey-api"
+main = "src/index.ts"
+compatibility_date = "2026-05-18"
+compatibility_flags = ["nodejs_compat"]
+
+# ─── Environments ────────────────────────────────────────────────────
+#
+# Top-level config (this section) is the **dev** environment. It uses
+# the resource names + IDs that local `wrangler dev` mounts against
+# the .wrangler/state/ directory — no real Cloudflare account needed.
+#
+# `wrangler deploy` (no --env) deploys this top-level config. For
+# production we publish under `--env production` which overrides the
+# bindings with the prod-tier resource IDs below. Staging gets its
+# own slice for end-to-end verification before prod.
+#
+# After running the resource-creation commands in
+# `context/deployment-runbook.md` you'll paste the returned IDs into
+# the `[env.staging]` and `[env.production]` blocks at the bottom of
+# this file.
+#
+# ─── DEV (default) bindings ─────────────────────────────────────────
+
+# Observability — Worker tail logs visible in the Cloudflare dashboard.
+[observability]
+enabled = true
+
+# D1: relational store for all entities defined in specs/02-data-model.md.
+# `database_id` is a placeholder. After running `wrangler d1 create bussey-bussey`,
+# replace this value with the ID Cloudflare returns.
+[[d1_databases]]
+binding = "DB"
+database_name = "bussey-bussey"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "../migrations"
+
+# R2: file storage for generated PDFs (contracts, change orders, invoices, etc.)
+# Create the bucket with `wrangler r2 bucket create bussey-bussey-files` before first deploy.
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "bussey-bussey-files"
+
+# KV: session cache (admin + portal session token mirror, chat sessions, ephemeral tokens).
+# `id` is a placeholder. After running `wrangler kv namespace create SESSIONS`,
+# replace this value with the namespace ID Cloudflare returns.
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+# Local-only KV namespace ID for `wrangler dev` (Wrangler will auto-generate one in .wrangler/).
+# preview_id is optional; leave commented unless you provision a preview namespace explicitly.
+# preview_id = "REPLACE_WITH_KV_PREVIEW_ID"
+
+# Bundler rules: import *.md files as text strings. Lets the activation
+# service `import templateBody from '../../../templates/contract/master.md'`
+# without a separate generator step, preserving the drop-in property of the
+# template file (see templates/contract/README.md).
+[[rules]]
+type = "Text"
+globs = ["**/*.md"]
+fallthrough = true
+
+# Secrets are loaded from .dev.vars during `wrangler dev`. See .dev.vars.example.
+# In production: set with `wrangler secret put <NAME> --env production`.
+
+# ─── STAGING ────────────────────────────────────────────────────────
+#
+# Deploy with `wrangler deploy --env staging` after pasting the
+# Cloudflare-returned IDs in below. Secrets are set per-environment
+# via `wrangler secret put <NAME> --env staging`.
+
+[env.staging]
+name = "bussey-bussey-api-staging"
+
+# Observability inherits from top-level config but each [env.*] block
+# re-declares its bindings. Override per resource type below.
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "bussey-bussey-staging"
+database_id = "f6c991cc-5e8e-4f4c-ab24-79c1623e66dc"
+migrations_dir = "../migrations"
+
+[[env.staging.r2_buckets]]
+binding = "FILES"
+bucket_name = "bussey-bussey-files-staging"
+
+[[env.staging.kv_namespaces]]
+binding = "SESSIONS"
+id = "31ae2b5ecd594387b7329ffa464c9a52"
+
+[[env.staging.rules]]
+type = "Text"
+globs = ["**/*.md"]
+fallthrough = true
+
+[env.staging.observability]
+enabled = true
+
+# ─── PRODUCTION ─────────────────────────────────────────────────────
+#
+# Deploy with `wrangler deploy --env production`. The Worker is
+# published as bussey-bussey-api-production (or renamed via a Cloudflare
+# route on the API hostname). Real money flows here — verify the
+# production smoke test passes before announcing to any real client.
+
+[env.production]
+name = "bussey-bussey-api-production"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "bussey-bussey-production"
+database_id = "aac8980f-4e93-4bef-a778-dbb3d02d474b"
+migrations_dir = "../migrations"
+
+[[env.production.r2_buckets]]
+binding = "FILES"
+bucket_name = "bussey-bussey-files-production"
+
+[[env.production.kv_namespaces]]
+binding = "SESSIONS"
+id = "5a4ecb652e9842df8c4390e684c9c4d9"
+
+[[env.production.rules]]
+type = "Text"
+globs = ["**/*.md"]
+fallthrough = true
+
+[env.production.observability]
+enabled = true

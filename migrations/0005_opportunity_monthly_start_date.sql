@@ -1,0 +1,25 @@
+-- Migration 0005 — opportunity.monthly_start_date
+--
+-- Added during step J2 to make the recurring billing start date overridable
+-- per opportunity. Default behavior when this column is NULL: the Stripe
+-- subscription's billing_cycle_anchor is set to
+-- `opportunity.accepted_at + 30 days`. The default mirrors typical SaaS
+-- expectations — setup fee charges immediately on payment-method
+-- confirmation, and the first monthly invoice fires 30 days later.
+--
+-- When this column holds a value, that value is used verbatim as the start
+-- date (ISO-8601 calendar date, YYYY-MM-DD). The override exists for deals
+-- where delivery starts earlier or later than the default — e.g. a kickoff
+-- staggered to align with the client's fiscal year, or a delayed launch
+-- where billing shouldn't begin until production cutover.
+--
+-- Resolution happens at /api/portal/walkthrough/setup-payment time, not at
+-- activation: the column may be edited after activation and before the
+-- client completes the walkthrough. Admin sets it via PUT
+-- /api/admin/opportunities/:id (added to OPP_EDITABLE_FIELDS).
+--
+-- SQLite's ALTER TABLE ADD COLUMN doesn't accept dynamic defaults, so the
+-- column is added as nullable and existing rows stay NULL (correct — they
+-- inherit the +30 default).
+
+ALTER TABLE opportunity ADD COLUMN monthly_start_date TEXT;

@@ -1,0 +1,24 @@
+{
+  "name": "bussey-bussey",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Bussey and Bussey operations platform: Cloudflare Workers + D1 + R2 + KV, Eleventy public site, SvelteKit admin + portal.",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @bussey/worker --filter @bussey/admin --filter @bussey/portal dev",
+    "dev:worker": "pnpm --filter @bussey/worker dev",
+    "dev:admin": "pnpm --filter @bussey/admin dev",
+    "dev:portal": "pnpm --filter @bussey/portal dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "seed:bootstrap-admin": "pnpm --filter @bussey/worker seed:bootstrap-admin"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4"
+  }
+}

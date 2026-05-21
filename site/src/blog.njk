@@ -1,0 +1,27 @@
+---
+layout: layouts/base.njk
+title: Blog
+description: Shorter cadence — notes, updates, things we built recently.
+permalink: /blog/
+---
+
+<div class="container">
+  <h1>Blog</h1>
+  <p class="muted">Shorter posts: things we built, what we're thinking about, updates from the firm.</p>
+
+  {% if collections.blog.length > 0 %}
+    <ul class="post-list">
+      {% for post in collections.blog %}
+        <li>
+          <a href="{{ post.url }}">
+            <h3>{{ post.data.title }}</h3>
+            <p class="muted small">{{ post.date | date }}</p>
+            {% if post.data.summary %}<p>{{ post.data.summary }}</p>{% endif %}
+          </a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">No posts published yet.</p>
+  {% endif %}
+</div>
