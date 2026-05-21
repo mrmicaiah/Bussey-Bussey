@@ -226,8 +226,7 @@ async function fireNewLeadNotification(ctx: HandlerContext, leadId: string): Pro
     `Pain summary:`,
     `  ${lead.pain_summary ?? '—'}`,
     ``,
-    // The admin URL is environment-dependent; in dev this points at SvelteKit.
-    `Open in admin: http://localhost:5173/admin/leads/${lead.id}`,
+    `Open in admin: ${ctx.env.ADMIN_URL_BASE}/leads/${lead.id}`,
   ];
 
   await sendEmail(ctx.env, {

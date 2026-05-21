@@ -372,6 +372,7 @@ export async function proposeChangeOrderHandler(ctx: HandlerContext): Promise<Re
           coId: id,
           setupDelta: co.setup_delta,
           monthlyDelta: co.monthly_delta,
+          portalUrlBase: ctx.env.PORTAL_URL_BASE,
         }),
         relatedEntity: { type: 'change_order', id },
       }),
@@ -417,6 +418,7 @@ function changeOrderProposedEmailText(args: {
   coId: string;
   setupDelta: number;
   monthlyDelta: number;
+  portalUrlBase: string;
 }): string {
   const greeting = args.name?.trim() || 'there';
   return [
@@ -428,7 +430,7 @@ function changeOrderProposedEmailText(args: {
     `  Monthly adjustment:  ${formatCurrency(args.monthlyDelta)} / mo`,
     '',
     `Review and approve (or reject) in your portal:`,
-    `  http://localhost:5173/portal/change-orders/${args.coId}`,
+    `  ${args.portalUrlBase}/change-orders/${args.coId}`,
     '',
     `Approving signs the amendment, charges the setup adjustment now, and`,
     `the monthly adjustment takes effect at your next billing cycle.`,

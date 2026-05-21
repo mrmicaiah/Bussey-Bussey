@@ -20,20 +20,28 @@ placeholders. Both `wrangler deploy --dry-run --env staging` and
 created with section 1 filled in (sections 2-10 are skeletons for
 later subtasks).
 
-**M.2 queued, blocked on resource creation.** User is running the six
-`wrangler ... create` commands themselves and will paste the returned
-IDs into `wrangler.toml`. Once that lands, M.2 applies migrations
-0001-0008 to both staging and production D1.
+**M.2 done.** Migrations 0001–0008 applied to both remote D1s
+(staging `f6c991cc-…`, production `aac8980f-…`). Both verified
+post-apply: 26 application tables, 25 pricing_components rows,
+`lead.source` enum carries `calling_list`, `admin_user` empty, all
+new K2/L columns present. Pricing-components seed = migration 0002
+(`INSERT OR IGNORE`); no separate 0009 needed. Production bootstrap
+admin intentionally not seeded — deferred to M.3 or M.10 prep.
 
-Two scope refinements captured in `context/step-M-scope.md` after
-sanity-checking against the current local D1:
-- The "25 tables" target was off — the actual post-migration-0008
-  table count is **26** (K2's `change_request` brought it from 25
-  to 26). Full list captured in the scope.
-- The pricing-components seed is migration 0002 (`INSERT OR IGNORE`),
-  not a separate CSV-apply step — runs automatically as part of the
-  0001-0008 sequence. The 25-row seed count is verifiable as a
-  separate check.
+**M.3 done (Claude side).** Five worker URL hardcodes + 1 admin-frontend
+URL migrated to `env.ADMIN_URL_BASE` / `env.PORTAL_URL_BASE` /
+`import.meta.env.VITE_API_URL_BASE` with sensible local-dev fallbacks.
+Fixed a latent port-5173-vs-5174 bug as a side effect (three of the
+constants pointed at admin's port where they should have pointed at
+portal's). `worker/wrangler.toml` gained `[env.staging.vars]` +
+`[env.production.vars]` blocks. `context/env-vars.md` is the new
+inventory doc; deployment-runbook section 3 is filled in with the
+`wrangler secret put` commands for staging (user-installs) and the
+deferred-list for production. Three resolved deferred-cleanup entries
+pruned (Portal URL, new-lead admin URL, Preview Presentation URL).
+Remaining M.3 work is user-side: paste staging Stripe `pk_test_…` into
+`wrangler.toml`, install 4 staging secrets via `wrangler secret put`,
+verify via `wrangler secret list --env staging`.
 
 **v1 build structurally complete.** Step L (calling list) built and
 smoke-tested green; scope in `context/step-L-scope.md`, results in

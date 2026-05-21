@@ -75,6 +75,24 @@ name = "bussey-bussey-api-staging"
 # Observability inherits from top-level config but each [env.*] block
 # re-declares its bindings. Override per resource type below.
 
+# Non-secret config readable by the worker as `env.<NAME>`. Anything
+# sensitive (ANTHROPIC_API_KEY, STRIPE_SECRET_KEY, RESEND_API_KEY,
+# SESSION_SECRET, STRIPE_WEBHOOK_SECRET) is installed separately via
+# `wrangler secret put <NAME> --env staging` and does NOT live here.
+# See context/env-vars.md for the full inventory.
+[env.staging.vars]
+ENV = "staging"
+ADMIN_URL_BASE = "https://admin-staging.busseyandbussey.com"
+PORTAL_URL_BASE = "https://portal-staging.busseyandbussey.com"
+DEMO_URL_BASE = "https://demo-staging.busseyandbussey.com"
+# Admin chose no-reply@ as the recipient. Confirm forwarding is set up
+# on the domain — no-reply@ is unconventional for inbound; if it's not
+# aliased to a real inbox, system notifications will silently drop.
+ADMIN_NOTIFY_EMAILS = "no-reply@busseyandbussey.com"
+# TODO(M.3): paste the real Stripe TEST publishable key (pk_test_…) from
+# Stripe dashboard → Developers → API keys.
+STRIPE_PUBLISHABLE_KEY = "pk_test_REPLACE_WITH_STAGING_PUBLISHABLE_KEY"
+
 [[env.staging.d1_databases]]
 binding = "DB"
 database_name = "bussey-bussey-staging"
@@ -106,6 +124,27 @@ enabled = true
 
 [env.production]
 name = "bussey-bussey-api-production"
+
+# Non-secret config readable by the worker as `env.<NAME>`. Same rule as
+# staging: secrets are installed via `wrangler secret put <NAME> --env
+# production` and do NOT live here. See context/env-vars.md.
+#
+# Production STRIPE_PUBLISHABLE_KEY stays as a placeholder until the
+# user activates a real Stripe account with live keys. Production
+# deployment is intentionally blocked until that key + the matching
+# STRIPE_SECRET_KEY secret are installed; see deployment-runbook.md
+# section 3 "Deferred production credentials."
+[env.production.vars]
+ENV = "production"
+ADMIN_URL_BASE = "https://admin.busseyandbussey.com"
+PORTAL_URL_BASE = "https://portal.busseyandbussey.com"
+DEMO_URL_BASE = "https://demo.busseyandbussey.com"
+# Same recipient as staging. Confirm forwarding/aliasing exists for
+# no-reply@busseyandbussey.com before relying on these notifications.
+ADMIN_NOTIFY_EMAILS = "no-reply@busseyandbussey.com"
+# DEFERRED(M.3.4): production Stripe publishable key (pk_live_…) lands
+# when the Stripe business activation is complete.
+STRIPE_PUBLISHABLE_KEY = "pk_live_REPLACE_WHEN_STRIPE_LIVE_MODE_ACTIVATES"
 
 [[env.production.d1_databases]]
 binding = "DB"

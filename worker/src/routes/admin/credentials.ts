@@ -36,8 +36,6 @@ import {
  * separately (out of step I scope).
  */
 
-const PORTAL_URL_BASE = 'http://localhost:5173'; // see notes/deferred-cleanup.md
-
 type ContextRow = {
   opportunity_id: string;
   opportunity_name: string;
@@ -85,7 +83,7 @@ export async function sendCredentialsEmailHandler(ctx: HandlerContext): Promise<
   }
 
   const recipientName = row.primary_contact_name?.trim() || 'there';
-  const portalUrl = `${PORTAL_URL_BASE}/portal`;
+  const portalUrl = ctx.env.PORTAL_URL_BASE;
   const subject = `Your ${row.client_company_name} portal — sign in to get started`;
   const text = welcomeEmailText({
     recipientName,
@@ -177,7 +175,7 @@ export async function getCredentialsHandler(ctx: HandlerContext): Promise<Respon
     available: true,
     credentials_issued_at: row.credentials_issued_at,
     credentials: {
-      portal_url: `${PORTAL_URL_BASE}/portal`,
+      portal_url: ctx.env.PORTAL_URL_BASE,
       email: row.portal_email,
       temp_password: plaintext,
     },
@@ -256,7 +254,7 @@ export async function resetCredentialsHandler(ctx: HandlerContext): Promise<Resp
     ok: true,
     credentials_issued_at: now,
     credentials: {
-      portal_url: `${PORTAL_URL_BASE}/portal`,
+      portal_url: ctx.env.PORTAL_URL_BASE,
       email: row.portal_email,
       temp_password: tempPassword,
     },

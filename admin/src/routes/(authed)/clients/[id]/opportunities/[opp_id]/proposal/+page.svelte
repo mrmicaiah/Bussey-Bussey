@@ -177,8 +177,11 @@
 
   function previewPresentation() {
     if (!opportunity) return;
-    // The presentation lives on the Worker (same origin in prod; localhost:8787 in dev). Open in a new tab.
-    const url = `http://localhost:8787/p/${opportunity.presentation_token}`;
+    // The presentation lives on the Worker. Vite picks up VITE_API_URL_BASE
+    // at build time (or via `.env` / `.env.production` for the deploy build);
+    // local dev falls back to the wrangler dev port. Open in a new tab.
+    const apiBase = import.meta.env['VITE_API_URL_BASE'] ?? 'http://localhost:8787';
+    const url = `${apiBase}/p/${opportunity.presentation_token}`;
     window.open(url, '_blank', 'noopener');
   }
 

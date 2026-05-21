@@ -22,4 +22,12 @@ export type Env = {
    *  in dev (Eleventy) and an empty string in production (same-origin). Iframe loads
    *  `${DEMO_URL_BASE}/demos/:token/`. */
   DEMO_URL_BASE: string;
+  /** Root URL of the admin SPA, used to build links in admin-facing notification emails.
+   *  Dev: `http://localhost:5173/admin`. Prod: whatever DNS resolves to the admin Pages
+   *  deployment. Code constructs `${ADMIN_URL_BASE}/leads/:id` etc. — no trailing slash. */
+  ADMIN_URL_BASE: string;
+  /** Root URL of the client portal SPA, used to build links in client-facing emails
+   *  (welcome, change order proposed, payment receipts). Dev: `http://localhost:5174/portal`.
+   *  Prod: whatever DNS resolves to the portal Pages deployment. No trailing slash. */
+  PORTAL_URL_BASE: string;
 };

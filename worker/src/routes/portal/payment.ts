@@ -71,8 +71,6 @@ export async function portalPaymentInvoicesHandler(ctx: HandlerContext): Promise
   return json({ invoices: res.results ?? [] });
 }
 
-const PORTAL_RETURN_URL_BASE = 'http://localhost:5174/portal/payment'; // dev-hardcoded; see notes/deferred-cleanup.md
-
 export async function portalPaymentPortalSessionHandler(ctx: HandlerContext): Promise<Response> {
   if (!ctx.session) return json({ error: 'unauthenticated' }, { status: 401 });
   const sub = await ctx.env.DB.prepare(
@@ -86,10 +84,11 @@ export async function portalPaymentPortalSessionHandler(ctx: HandlerContext): Pr
     .first<{ stripe_customer_id: string }>();
   if (!sub) return json({ error: 'no_stripe_customer' }, { status: 409 });
 
+  const returnUrl = `${ctx.env.PORTAL_URL_BASE}/payment`;
   const dev = isStripeDevPlaceholder(ctx.env);
   if (dev) {
     return json({
-      url: `${PORTAL_RETURN_URL_BASE}?dev_portal_session=true`,
+      url: `${returnUrl}?dev_portal_session=true`,
       dev_placeholder: true,
     });
   }
@@ -97,7 +96,7 @@ export async function portalPaymentPortalSessionHandler(ctx: HandlerContext): Pr
   // Real Stripe: POST /v1/billing_portal/sessions.
   const params = new URLSearchParams({
     customer: sub.stripe_customer_id,
-    return_url: PORTAL_RETURN_URL_BASE,
+    return_url: returnUrl,
   }).toString();
   const res = await fetch('https://api.stripe.com/v1/billing_portal/sessions', {
     method: 'POST',

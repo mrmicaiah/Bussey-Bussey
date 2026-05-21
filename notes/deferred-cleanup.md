@@ -9,7 +9,7 @@ Each entry: what, why deferred, when to revisit. New entries go at the top
 **By urgency to revisit:**
 
 - *Before first real client signs anything:* [Contract template requires lawyer review](#contract-template-requires-lawyer-review-before-real-client-signing) · [Stripe dev-placeholder mode for setup-payment](#stripe-dev-placeholder-mode-for-setup-payment)
-- *Before first production traffic:* [CORS on `/api/chat/*` is wide-open](#cors-on-apichat-is-wide-open) · [Session row cleanup (D1)](#session-row-cleanup-d1) · [Production routing for `/p/:token/demo/`](#production-routing-for-ptokendemo) · [Calculator's "Preview presentation" URL hardcoded](#calculators-preview-presentation-url-is-hardcoded-to-localhost8787) · [New-lead notification email hardcoded admin URL](#new-lead-notification-email-has-a-hardcoded-admin-url) · [Portal URL hardcoded in activation service](#portal-url-is-hardcoded-in-the-activation-service)
+- *Before first production traffic:* [CORS on `/api/chat/*` is wide-open](#cors-on-apichat-is-wide-open) · [Session row cleanup (D1)](#session-row-cleanup-d1) · [Production routing for `/p/:token/demo/`](#production-routing-for-ptokendemo)
 - *Triggered by a second admin user:* [v1 bootstrap admin script — replace before second admin](#v1-bootstrap-admin-script--replace-before-second-admin) · [Owner-picker UX deferred until multi-admin](#owner-picker-ux-deferred-until-multi-admin) · [`/api/admin/auth/change-password` does not exist](#apiadminauthchange-password-does-not-exist)
 - *Triggered by feature need:* [Notification preferences UI shipped but not yet enforced](#notification-preferences-ui-shipped-but-not-yet-enforced-in-send-logic) · [Signed-contract download is Markdown, not PDF](#signed-contract-download-is-markdown-not-pdf) · [`/api/portal/auth/change-password` is still stubbed](#apiportalauthchange-password-is-still-stubbed) · [Notes fields are single TEXT, spec asked for append-only](#notes-fields-are-single-text-spec-asked-for-append-only-with-timestamps) · [Margin/buffer indicators not implemented](#marginbuffer-indicators-not-implemented) · [Conversation context is the last 20 messages](#conversation-context-is-the-last-20-messages)
 - *Triggered by a future data shape:* [`updated_at` only on `proposal`](#updated_at-only-on-proposal-other-entities-still-missing-it) · [`setup_and_monthly` unit_type contributes to BOTH buckets](#setup_and_monthly-unit_type-contributes-to-both-buckets) · [Clone of accepted proposal copies opportunity name verbatim](#clone-of-accepted-proposal-copies-opportunity-name-verbatim) · [Stripe subscription status enum is a 3-bucket lossy projection](#stripe-subscription-status-enum-is-a-3-bucket-lossy-projection) · [`notification.kind` enum missing change_order_rejected + change_order_failed](#notificationkind-enum-is-missing-change_order_rejected--change_order_failed) · [Temp password plaintext cached in KV with 24h TTL](#temp-password-plaintext-cached-in-kv-with-24h-ttl) · [client.status flips to 'active' on acceptance](#clientstatus-flips-to-active-on-acceptance-not-a-separate-activating-state) · [Status state-machines server-permissive client-restrictive](#status-state-machines-are-server-permissive-client-restrictive) · [Proposal totals cache-and-update on the proposal row](#proposal-totals-cache-and-update-on-the-proposal-row) · [Presentation HTML inlines its own JS bundle](#presentation-html-inlines-its-own-10-kb-js-bundle) · [Calculator's custom-line-item prompt is `window.prompt()`](#calculators-custom-line-item-prompt-is-windowprompt) · [Chat system prompt lives in a `.ts` file, not a `.md`](#chat-system-prompt-lives-in-a-ts-file-not-a-md) · [Chat dev-mode stub when ANTHROPIC_API_KEY is placeholder](#chat-dev-mode-stub-when-anthropic_api_key-is-placeholder) · [Admin SPA framework decision (locked)](#admin-spa-framework-decision-locked) · [`@cloudflare/workers-types` version bump](#cloudflareworkers-types-version-bump)
@@ -19,17 +19,21 @@ Each entry: what, why deferred, when to revisit. New entries go at the top
 - *K2 build:* [Notification preferences UI shipped but not yet enforced](#notification-preferences-ui-shipped-but-not-yet-enforced-in-send-logic)
 - *K1 build:* [`notification.kind` enum missing change_order_rejected + change_order_failed](#notificationkind-enum-is-missing-change_order_rejected--change_order_failed)
 - *J2 build:* [Signed-contract download is Markdown, not PDF](#signed-contract-download-is-markdown-not-pdf) · [Stripe dev-placeholder mode for setup-payment](#stripe-dev-placeholder-mode-for-setup-payment) · [Stripe subscription status enum is a 3-bucket lossy projection](#stripe-subscription-status-enum-is-a-3-bucket-lossy-projection)
-- *I build:* [client.status flips to 'active' on acceptance](#clientstatus-flips-to-active-on-acceptance-not-a-separate-activating-state) · [Portal URL hardcoded in activation service](#portal-url-is-hardcoded-in-the-activation-service) · [Temp password plaintext cached in KV with 24h TTL](#temp-password-plaintext-cached-in-kv-with-24h-ttl) · [Contract template requires lawyer review](#contract-template-requires-lawyer-review-before-real-client-signing)
+- *I build:* [client.status flips to 'active' on acceptance](#clientstatus-flips-to-active-on-acceptance-not-a-separate-activating-state) · [Temp password plaintext cached in KV with 24h TTL](#temp-password-plaintext-cached-in-kv-with-24h-ttl) · [Contract template requires lawyer review](#contract-template-requires-lawyer-review-before-real-client-signing)
 - *H build:* [Production routing for `/p/:token/demo/`](#production-routing-for-ptokendemo) · [Presentation HTML inlines its own JS bundle](#presentation-html-inlines-its-own-10-kb-js-bundle) · [`updated_at` only on `proposal`](#updated_at-only-on-proposal-other-entities-still-missing-it)
-- *G2 build:* [Calculator's "Preview presentation" URL hardcoded](#calculators-preview-presentation-url-is-hardcoded-to-localhost8787) · [Calculator's custom-line-item prompt is `window.prompt()`](#calculators-custom-line-item-prompt-is-windowprompt) · [Margin/buffer indicators not implemented](#marginbuffer-indicators-not-implemented)
+- *G2 build:* [Calculator's custom-line-item prompt is `window.prompt()`](#calculators-custom-line-item-prompt-is-windowprompt) · [Margin/buffer indicators not implemented](#marginbuffer-indicators-not-implemented)
 - *G1 build:* [Proposal totals cache-and-update on the proposal row](#proposal-totals-cache-and-update-on-the-proposal-row) · [`setup_and_monthly` unit_type contributes to BOTH buckets](#setup_and_monthly-unit_type-contributes-to-both-buckets) · [Clone of accepted proposal copies opportunity name verbatim](#clone-of-accepted-proposal-copies-opportunity-name-verbatim)
-- *F build:* [CORS on `/api/chat/*` is wide-open](#cors-on-apichat-is-wide-open) · [Chat system prompt lives in a `.ts` file, not a `.md`](#chat-system-prompt-lives-in-a-ts-file-not-a-md) · [Chat dev-mode stub when ANTHROPIC_API_KEY is placeholder](#chat-dev-mode-stub-when-anthropic_api_key-is-placeholder) · [New-lead notification email hardcoded admin URL](#new-lead-notification-email-has-a-hardcoded-admin-url) · [Conversation context is the last 20 messages](#conversation-context-is-the-last-20-messages)
+- *F build:* [CORS on `/api/chat/*` is wide-open](#cors-on-apichat-is-wide-open) · [Chat system prompt lives in a `.ts` file, not a `.md`](#chat-system-prompt-lives-in-a-ts-file-not-a-md) · [Chat dev-mode stub when ANTHROPIC_API_KEY is placeholder](#chat-dev-mode-stub-when-anthropic_api_key-is-placeholder) · [Conversation context is the last 20 messages](#conversation-context-is-the-last-20-messages)
 - *E build:* [Admin SPA framework decision (locked)](#admin-spa-framework-decision-locked) · [Notes fields are single TEXT, spec asked for append-only](#notes-fields-are-single-text-spec-asked-for-append-only-with-timestamps) · [Owner-picker UX deferred until multi-admin](#owner-picker-ux-deferred-until-multi-admin) · [Status state-machines server-permissive client-restrictive](#status-state-machines-are-server-permissive-client-restrictive)
 - *D scoping/wrap-up:* [v1 bootstrap admin script](#v1-bootstrap-admin-script--replace-before-second-admin) · [Session row cleanup (D1)](#session-row-cleanup-d1) · [`/api/admin/auth/change-password` does not exist](#apiadminauthchange-password-does-not-exist) · [`/api/portal/auth/change-password` is still stubbed](#apiportalauthchange-password-is-still-stubbed)
 - *B follow-up:* [`@cloudflare/workers-types` version bump](#cloudflareworkers-types-version-bump)
 
 (Step L added no new entries — the L work surfaced only existing ones and
-expanded the notification-prefs callsite map.)
+expanded the notification-prefs callsite map. Step M.3 RESOLVED three
+entries by migrating hardcoded URLs to env vars: "Portal URL hardcoded
+in activation service," "New-lead notification email hardcoded admin
+URL," and "Calculator's 'Preview presentation' URL hardcoded." Those
+entries are removed from this file.)
 
 ---
 
@@ -177,13 +181,6 @@ expanded the notification-prefs callsite map.)
 - **When to revisit:** if we ever need to gate functionality on the distinction between "active but not yet onboarded" and "fully onboarded" at the client level (rather than at the portal_account level). At that point, either (a) add `'activating'` to the enum and migrate, or (b) keep `client.status = 'active'` and read the walkthrough flag wherever the distinction matters. Likely (b) is enough indefinitely.
 - **Decided:** during step I build.
 
-## Portal URL is hardcoded in the activation service
-
-- **What:** The activation service hardcodes the portal URL (currently `http://localhost:5173/portal`) when constructing the credentials handoff payload. Same family as the deferred admin/presentation URL hardcodes.
-- **Why deferred:** production hosting topology not yet decided. The "Email to Client" welcome email and the credentials handoff response both need the URL; centralizing it in one constant keeps the change to one line when we deploy.
-- **When to revisit:** when we deploy. Replace the constant with `env.PORTAL_URL_BASE` (or whatever the deploy topology dictates). The constant lives at the top of `worker/src/services/activation.ts`.
-- **Decided:** during step I build.
-
 ## Temp password plaintext cached in KV with 24h TTL
 
 - **What:** The 24-hour credentials re-display window (spec 07 § "Re-display window") needs the plaintext temp password retrievable for 24 hours after issuance, since the admin may need to re-show it on the opportunity page. Implemented as `env.SESSIONS.put('temp_password:<portal_account_id>', plaintext, { expirationTtl: 86400 })`. After 24h the KV entry auto-expires and the "Show credentials" link in admin flips to "Reset password and share new credentials," which generates a fresh temp password and writes a new KV entry.
@@ -220,13 +217,6 @@ expanded the notification-prefs callsite map.)
 - **Why deferred:** none of the other entities currently drive a polling client. Adding `updated_at` everywhere preemptively would be schema churn without a consumer.
 - **When to revisit:** when a second live-sync client surfaces (likely the portal during change-order review, or the admin "recent activity" feed). Add `updated_at` to the relevant table at that point, with the same pattern as proposal.
 - **Decided:** during step H build.
-
-## Calculator's "Preview presentation" URL is hardcoded to localhost:8787
-
-- **What:** `admin/src/routes/(authed)/clients/[id]/opportunities/[opp_id]/proposal/+page.svelte`'s `previewPresentation()` opens `http://localhost:8787/p/:token` in a new tab. Dev-only URL.
-- **Why deferred:** production topology not yet decided. Same family as the new-lead notification email's hardcoded admin URL.
-- **When to revisit:** when we deploy. Likely a `PRESENTATION_URL_BASE` field on `_data/site.js`-style admin config, or just same-origin once the Worker serves admin + presentation under one host.
-- **Decided:** during step G2 build.
 
 ## Calculator's custom-line-item prompt is `window.prompt()`
 
@@ -283,13 +273,6 @@ expanded the notification-prefs callsite map.)
 - **What:** `POST /api/chat/message` checks if the API key is `sk-ant-replace-me` (the .dev.vars.example value) and, if so, returns a deterministic stub response without calling Anthropic. Visible to the user: "(Bussey assistant isn't connected to Claude in this environment…)".
 - **Why this is intentional:** lets developers run the full site + admin + worker stack locally without burning API tokens or fighting auth errors. The full chat loop (including `save_lead` tool calls and admin notification emails) requires a real key.
 - **Watch out:** if anyone ships to staging/prod without a real key, every chat session will visibly say the bot isn't connected. Production deploy checklist must include `wrangler secret put ANTHROPIC_API_KEY`.
-- **Decided:** during step F build.
-
-## New-lead notification email has a hardcoded admin URL
-
-- **What:** `worker/src/routes/public/chat.ts` constructs the "Open in admin" link as `http://localhost:5173/admin/leads/:id`. That's the dev URL.
-- **Why deferred:** we don't yet have a production hosting topology decided (note above).
-- **When to revisit:** when we deploy. Likely an `ADMIN_URL_BASE` env var that the email template reads.
 - **Decided:** during step F build.
 
 ## Conversation context is the last 20 messages

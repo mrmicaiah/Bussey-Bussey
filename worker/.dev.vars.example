@@ -39,3 +39,12 @@ ENV=development
 # In dev: http://localhost:8080 (Eleventy serves /demos/:token/)
 # In prod: leave empty so the iframe loads same-origin /demos/:token/
 DEMO_URL_BASE=http://localhost:8080
+
+# Root URL of the admin SPA, used to build links in admin-facing notification emails
+# (new lead → "Open in admin: ${ADMIN_URL_BASE}/leads/:id"). No trailing slash.
+ADMIN_URL_BASE=http://localhost:5173/admin
+
+# Root URL of the client portal SPA, used to build links in client-facing emails
+# (activation welcome, change-order proposed, payment receipts). No trailing slash.
+# Note: portal dev server runs on 5174, not 5173 (admin is on 5173).
+PORTAL_URL_BASE=http://localhost:5174/portal

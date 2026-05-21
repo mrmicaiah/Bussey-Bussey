@@ -35,10 +35,6 @@ import { renderContract } from './contract-render';
 // the canonical contract terms change in a way that affects past renders.
 const TEMPLATE_VERSION = 'v0.1-starter';
 
-// Dev-hardcoded; tracked in notes/deferred-cleanup.md ("Portal URL is hardcoded
-// in the activation service"). Swap for env.PORTAL_URL_BASE at deploy time.
-const PORTAL_URL_BASE = 'http://localhost:5173';
-
 export class ActivationError extends Error {
   constructor(
     public readonly httpStatus: number,
@@ -295,7 +291,7 @@ export async function activateOpportunity(
     contractId,
     portalAccountId,
     credentials: {
-      portalUrl: `${PORTAL_URL_BASE}/portal`,
+      portalUrl: env.PORTAL_URL_BASE,
       email: contactEmail,
       tempPassword,
     },
