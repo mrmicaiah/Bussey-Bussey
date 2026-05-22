@@ -106,6 +106,30 @@ or referenced in worker / admin / portal code paths is listed.
 - **Note**: rotating this invalidates every active session for that
   environment. Plan accordingly.
 
+### `ADMIN_NOTIFY_EMAILS`
+
+- **Purpose**: Comma-separated list of admin email addresses that
+  receive system notifications (new lead captured, change order
+  events, payment failures, walkthrough completion).
+- **Sensitivity**: SECRET (transitionally — see Note).
+- **Source**: admin's personal email (until business email is set up
+  at `busseyandbussey.com`).
+- **Environments**: dev (`team@example.com` in `.dev.vars`), staging +
+  production (set via `wrangler secret put ADMIN_NOTIFY_EMAILS --env
+  <env>`).
+- **Format**: comma-separated, no spaces strictly required (the parser
+  in `worker/src/services/email.ts` trims each entry).
+- **Note**: this variable lives in the SECRET tier *temporarily*
+  because the value is a personal email address rather than a
+  business mailbox; treating it as a secret keeps it out of the
+  committed wrangler.toml. Once business email is set up at the
+  `busseyandbussey.com` domain, move this back to
+  `[env.<env>.vars]` as a PUBLIC config and delete the secret. The
+  wrangler.toml entry currently sits as `ADMIN_NOTIFY_EMAILS =
+  "REPLACE_WITH_ADMIN_EMAIL"` — that placeholder is shadowed by the
+  installed secret at runtime. Tracked in
+  `notes/deferred-cleanup.md`.
+
 ---
 
 ## Worker PUBLIC config (in `wrangler.toml [env.<env>.vars]`)
@@ -151,22 +175,6 @@ or referenced in worker / admin / portal code paths is listed.
   (`https://demo.busseyandbussey.com`). The production hostname
   may collapse to same-origin (`""`) after M.4 DNS decisions.
 - **Format**: no trailing slash.
-
-### `ADMIN_NOTIFY_EMAILS`
-
-- **Purpose**: Comma-separated list of admin email addresses that
-  receive system notifications (new lead captured, change order
-  events, payment failures, walkthrough completion).
-- **Sensitivity**: PUBLIC.
-- **Environments**: dev (`team@example.com`), staging + production
-  (`no-reply@busseyandbussey.com`).
-- **Format**: comma-separated, no spaces strictly required (the
-  parser in `worker/src/services/email.ts` trims each entry).
-- **Note**: `no-reply@` is an unconventional choice for an inbound
-  recipient — historically those addresses are sender-only. Confirm
-  that `no-reply@busseyandbussey.com` is aliased / forwarded to a
-  real inbox before relying on these notifications; otherwise the
-  emails will silently drop.
 
 ### `STRIPE_PUBLISHABLE_KEY`
 
@@ -228,7 +236,7 @@ or referenced in worker / admin / portal code paths is listed.
 | ADMIN_URL_BASE          | .dev.vars             | wrangler.toml                             | wrangler.toml                                  |
 | PORTAL_URL_BASE         | .dev.vars             | wrangler.toml                             | wrangler.toml                                  |
 | DEMO_URL_BASE           | .dev.vars             | wrangler.toml                             | wrangler.toml                                  |
-| ADMIN_NOTIFY_EMAILS     | .dev.vars             | wrangler.toml (placeholder pending)       | wrangler.toml (placeholder pending)            |
+| ADMIN_NOTIFY_EMAILS     | .dev.vars             | wrangler secret put (personal, transitional) | wrangler secret put (personal, transitional) |
 | STRIPE_PUBLISHABLE_KEY  | .dev.vars             | wrangler.toml (real `pk_test_…` pending)  | wrangler.toml (real `pk_live_…`) — DEFERRED    |
 | VITE_API_URL_BASE       | admin/.env (or fallback) | admin/.env.staging build env             | admin/.env.production build env                |
 | BUSSEY_API_BASE         | site default          | Pages env config                          | Pages env config                               |

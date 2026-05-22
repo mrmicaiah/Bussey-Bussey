@@ -282,6 +282,12 @@ pnpm exec wrangler secret put RESEND_API_KEY --env staging
 #   openssl rand -hex 32
 # then paste the output.
 pnpm exec wrangler secret put SESSION_SECRET --env staging
+
+# Admin notification recipient — transitionally a SECRET because the
+# value is a personal email until business email is set up at
+# busseyandbussey.com. See notes/deferred-cleanup.md for the move-back
+# plan. Comma-separated for multiple recipients.
+pnpm exec wrangler secret put ADMIN_NOTIFY_EMAILS --env staging
 ```
 
 `STRIPE_WEBHOOK_SECRET` for staging is **deferred until M.5** —
@@ -294,9 +300,10 @@ Verify the installed set:
 pnpm exec wrangler secret list --env staging
 ```
 
-Expected after the four commands above:
+Expected after the five commands above:
 `ANTHROPIC_API_KEY`, `STRIPE_SECRET_KEY`, `RESEND_API_KEY`,
-`SESSION_SECRET` (4 entries; `STRIPE_WEBHOOK_SECRET` arrives later).
+`SESSION_SECRET`, `ADMIN_NOTIFY_EMAILS` (5 entries;
+`STRIPE_WEBHOOK_SECRET` arrives later in M.5).
 
 ### Secret installation — production (DEFERRED)
 
@@ -310,6 +317,7 @@ one-by-one as the corresponding external dependency completes:
 | `STRIPE_WEBHOOK_SECRET` | M.5 — production webhook endpoint configured in Stripe.  |
 | `RESEND_API_KEY`        | Resend domain verification for `busseyandbussey.com`.    |
 | `SESSION_SECRET`        | None — generate when ready to install.                   |
+| `ADMIN_NOTIFY_EMAILS`   | None — install with personal email for now; move back to `[env.production.vars]` once business email exists at `busseyandbussey.com` (see deferred-cleanup). |
 
 When each becomes available, install with:
 
@@ -321,11 +329,12 @@ pnpm exec wrangler secret put <NAME> --env production
 same time as `STRIPE_SECRET_KEY`, but it goes into `wrangler.toml`
 `[env.production.vars]` (public config), not via `secret put`.
 
-> **Production deployment is BLOCKED until all five production
+> **Production deployment is BLOCKED until the first five production
 > secrets above are installed AND the `STRIPE_PUBLISHABLE_KEY` in
 > `wrangler.toml [env.production.vars]` is replaced with the real
-> `pk_live_…` value.** Section 6 (Deployment commands) re-states
-> this gate.
+> `pk_live_…` value.** (`ADMIN_NOTIFY_EMAILS` can be installed at any
+> time and is not a blocker for the deployment gate.) Section 6
+> (Deployment commands) re-states this.
 
 ---
 

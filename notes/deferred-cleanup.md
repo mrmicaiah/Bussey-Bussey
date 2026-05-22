@@ -11,11 +11,12 @@ Each entry: what, why deferred, when to revisit. New entries go at the top
 - *Before first real client signs anything:* [Contract template requires lawyer review](#contract-template-requires-lawyer-review-before-real-client-signing) · [Stripe dev-placeholder mode for setup-payment](#stripe-dev-placeholder-mode-for-setup-payment)
 - *Before first production traffic:* [CORS on `/api/chat/*` is wide-open](#cors-on-apichat-is-wide-open) · [Session row cleanup (D1)](#session-row-cleanup-d1) · [Production routing for `/p/:token/demo/`](#production-routing-for-ptokendemo)
 - *Triggered by a second admin user:* [v1 bootstrap admin script — replace before second admin](#v1-bootstrap-admin-script--replace-before-second-admin) · [Owner-picker UX deferred until multi-admin](#owner-picker-ux-deferred-until-multi-admin) · [`/api/admin/auth/change-password` does not exist](#apiadminauthchange-password-does-not-exist)
-- *Triggered by feature need:* [Notification preferences UI shipped but not yet enforced](#notification-preferences-ui-shipped-but-not-yet-enforced-in-send-logic) · [Signed-contract download is Markdown, not PDF](#signed-contract-download-is-markdown-not-pdf) · [`/api/portal/auth/change-password` is still stubbed](#apiportalauthchange-password-is-still-stubbed) · [Notes fields are single TEXT, spec asked for append-only](#notes-fields-are-single-text-spec-asked-for-append-only-with-timestamps) · [Margin/buffer indicators not implemented](#marginbuffer-indicators-not-implemented) · [Conversation context is the last 20 messages](#conversation-context-is-the-last-20-messages)
+- *Triggered by feature need:* [ADMIN_NOTIFY_EMAILS back to PUBLIC once business email exists](#admin_notify_emails-is-temporarily-a-secret-move-back-to-public-once-business-email-exists) · [Notification preferences UI shipped but not yet enforced](#notification-preferences-ui-shipped-but-not-yet-enforced-in-send-logic) · [Signed-contract download is Markdown, not PDF](#signed-contract-download-is-markdown-not-pdf) · [`/api/portal/auth/change-password` is still stubbed](#apiportalauthchange-password-is-still-stubbed) · [Notes fields are single TEXT, spec asked for append-only](#notes-fields-are-single-text-spec-asked-for-append-only-with-timestamps) · [Margin/buffer indicators not implemented](#marginbuffer-indicators-not-implemented) · [Conversation context is the last 20 messages](#conversation-context-is-the-last-20-messages)
 - *Triggered by a future data shape:* [`updated_at` only on `proposal`](#updated_at-only-on-proposal-other-entities-still-missing-it) · [`setup_and_monthly` unit_type contributes to BOTH buckets](#setup_and_monthly-unit_type-contributes-to-both-buckets) · [Clone of accepted proposal copies opportunity name verbatim](#clone-of-accepted-proposal-copies-opportunity-name-verbatim) · [Stripe subscription status enum is a 3-bucket lossy projection](#stripe-subscription-status-enum-is-a-3-bucket-lossy-projection) · [`notification.kind` enum missing change_order_rejected + change_order_failed](#notificationkind-enum-is-missing-change_order_rejected--change_order_failed) · [Temp password plaintext cached in KV with 24h TTL](#temp-password-plaintext-cached-in-kv-with-24h-ttl) · [client.status flips to 'active' on acceptance](#clientstatus-flips-to-active-on-acceptance-not-a-separate-activating-state) · [Status state-machines server-permissive client-restrictive](#status-state-machines-are-server-permissive-client-restrictive) · [Proposal totals cache-and-update on the proposal row](#proposal-totals-cache-and-update-on-the-proposal-row) · [Presentation HTML inlines its own JS bundle](#presentation-html-inlines-its-own-10-kb-js-bundle) · [Calculator's custom-line-item prompt is `window.prompt()`](#calculators-custom-line-item-prompt-is-windowprompt) · [Chat system prompt lives in a `.ts` file, not a `.md`](#chat-system-prompt-lives-in-a-ts-file-not-a-md) · [Chat dev-mode stub when ANTHROPIC_API_KEY is placeholder](#chat-dev-mode-stub-when-anthropic_api_key-is-placeholder) · [Admin SPA framework decision (locked)](#admin-spa-framework-decision-locked) · [`@cloudflare/workers-types` version bump](#cloudflareworkers-types-version-bump)
 
 **By step in which the deferral was decided** (newest first):
 
+- *M.3 build:* [ADMIN_NOTIFY_EMAILS back to PUBLIC once business email exists](#admin_notify_emails-is-temporarily-a-secret-move-back-to-public-once-business-email-exists)
 - *K2 build:* [Notification preferences UI shipped but not yet enforced](#notification-preferences-ui-shipped-but-not-yet-enforced-in-send-logic)
 - *K1 build:* [`notification.kind` enum missing change_order_rejected + change_order_failed](#notificationkind-enum-is-missing-change_order_rejected--change_order_failed)
 - *J2 build:* [Signed-contract download is Markdown, not PDF](#signed-contract-download-is-markdown-not-pdf) · [Stripe dev-placeholder mode for setup-payment](#stripe-dev-placeholder-mode-for-setup-payment) · [Stripe subscription status enum is a 3-bucket lossy projection](#stripe-subscription-status-enum-is-a-3-bucket-lossy-projection)
@@ -36,6 +37,32 @@ URL," and "Calculator's 'Preview presentation' URL hardcoded." Those
 entries are removed from this file.)
 
 ---
+
+## ADMIN_NOTIFY_EMAILS is temporarily a SECRET; move back to PUBLIC once business email exists
+
+- **What:** `ADMIN_NOTIFY_EMAILS` is currently installed as a Cloudflare
+  secret (`wrangler secret put ADMIN_NOTIFY_EMAILS --env <env>`) for
+  both staging and production. The wrangler.toml `[env.<env>.vars]`
+  blocks carry a placeholder `ADMIN_NOTIFY_EMAILS =
+  "REPLACE_WITH_ADMIN_EMAIL"` that's shadowed by the secret at runtime.
+- **Why deferred:** the real value is the admin's personal email
+  address (business email hasn't been set up at `busseyandbussey.com`
+  yet). Treating it as a secret keeps the personal address out of the
+  committed wrangler.toml and out of any future `wrangler deploy
+  --dry-run` output that gets shared.
+- **When to revisit:** once a business mailbox exists at
+  `busseyandbussey.com` (likely `admin@…`, `team@…`, or whatever the
+  user provisions through Google Workspace / similar). At that point:
+  1. Update `[env.staging.vars]` and `[env.production.vars]` in
+     `worker/wrangler.toml` — replace the placeholder with the real
+     business email.
+  2. Remove the secret: `wrangler secret delete ADMIN_NOTIFY_EMAILS
+     --env staging` and `--env production`.
+  3. Update `context/env-vars.md` — move `ADMIN_NOTIFY_EMAILS` from
+     the SECRET section back to the PUBLIC section, update the
+     summary table, drop the transitional note.
+  4. Remove this deferred-cleanup entry.
+- **Decided:** during step M.3 build (M.3.5 amendment).
 
 ## Notification preferences UI shipped but not yet enforced in send logic
 

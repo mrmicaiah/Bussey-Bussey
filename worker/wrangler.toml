@@ -85,10 +85,15 @@ ENV = "staging"
 ADMIN_URL_BASE = "https://admin-staging.busseyandbussey.com"
 PORTAL_URL_BASE = "https://portal-staging.busseyandbussey.com"
 DEMO_URL_BASE = "https://demo-staging.busseyandbussey.com"
-# Admin chose no-reply@ as the recipient. Confirm forwarding is set up
-# on the domain — no-reply@ is unconventional for inbound; if it's not
-# aliased to a real inbox, system notifications will silently drop.
-ADMIN_NOTIFY_EMAILS = "no-reply@busseyandbussey.com"
+# ADMIN_NOTIFY_EMAILS is installed as a SECRET right now (not a public
+# var) because the value is a personal email — admin hasn't set up
+# business email at busseyandbussey.com yet. The placeholder below is a
+# breadcrumb; the real value is set via
+#   wrangler secret put ADMIN_NOTIFY_EMAILS --env staging
+# Secret values shadow [vars] entries at runtime, so this placeholder
+# never reaches the worker. Move back to a real [vars] entry once
+# business email exists — see notes/deferred-cleanup.md.
+ADMIN_NOTIFY_EMAILS = "REPLACE_WITH_ADMIN_EMAIL"
 # TODO(M.3): paste the real Stripe TEST publishable key (pk_test_…) from
 # Stripe dashboard → Developers → API keys.
 STRIPE_PUBLISHABLE_KEY = "pk_test_REPLACE_WITH_STAGING_PUBLISHABLE_KEY"
@@ -139,9 +144,10 @@ ENV = "production"
 ADMIN_URL_BASE = "https://admin.busseyandbussey.com"
 PORTAL_URL_BASE = "https://portal.busseyandbussey.com"
 DEMO_URL_BASE = "https://demo.busseyandbussey.com"
-# Same recipient as staging. Confirm forwarding/aliasing exists for
-# no-reply@busseyandbussey.com before relying on these notifications.
-ADMIN_NOTIFY_EMAILS = "no-reply@busseyandbussey.com"
+# Installed as SECRET (same reason as staging — see notes/deferred-cleanup.md).
+# Real value set via:
+#   wrangler secret put ADMIN_NOTIFY_EMAILS --env production
+ADMIN_NOTIFY_EMAILS = "REPLACE_WITH_ADMIN_EMAIL"
 # DEFERRED(M.3.4): production Stripe publishable key (pk_live_…) lands
 # when the Stripe business activation is complete.
 STRIPE_PUBLISHABLE_KEY = "pk_live_REPLACE_WHEN_STRIPE_LIVE_MODE_ACTIVATES"

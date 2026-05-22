@@ -39,9 +39,20 @@ inventory doc; deployment-runbook section 3 is filled in with the
 `wrangler secret put` commands for staging (user-installs) and the
 deferred-list for production. Three resolved deferred-cleanup entries
 pruned (Portal URL, new-lead admin URL, Preview Presentation URL).
+
+**M.3.5 amendment.** `ADMIN_NOTIFY_EMAILS` reclassified as a
+*transitional* SECRET because business email isn't set up at
+`busseyandbussey.com` yet — the value is a personal address.
+`wrangler.toml` carries placeholder `REPLACE_WITH_ADMIN_EMAIL` in both
+env blocks (shadowed by the secret at runtime). New deferred-cleanup
+entry tracks the move back to PUBLIC `[vars]` once business email
+exists.
+
 Remaining M.3 work is user-side: paste staging Stripe `pk_test_…` into
-`wrangler.toml`, install 4 staging secrets via `wrangler secret put`,
-verify via `wrangler secret list --env staging`.
+`wrangler.toml`, install 5 staging secrets (ANTHROPIC_API_KEY,
+STRIPE_SECRET_KEY, RESEND_API_KEY, SESSION_SECRET,
+ADMIN_NOTIFY_EMAILS) via `wrangler secret put`, verify via
+`wrangler secret list --env staging`.
 
 **v1 build structurally complete.** Step L (calling list) built and
 smoke-tested green; scope in `context/step-L-scope.md`, results in
