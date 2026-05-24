@@ -8,6 +8,7 @@
   --accent-deep: #9e0816;  /* hover for crimson surfaces (send button) */
   --accent-text: #ffffff;
   --hair: #e7e7e2;         /* light hairline for subtle internal rules */
+  --header-h: 85px;        /* real lockup header height — drives the stage fill */
   --font-display: 'Space Grotesk', sans-serif;
   --font-body: 'Instrument Sans', sans-serif;
   /* Legacy aliases so pre-existing rules keep resolving to the new palette. */
@@ -181,9 +182,12 @@ a:hover { text-decoration: underline; }
    --------------------------------------------------------------------------- */
 
 .stage {
-  min-height: calc(100vh - 70px);
+  min-height: calc(100svh - var(--header-h));
   display: grid;
   grid-template-columns: 1.05fr 1fr;
+  /* Bound the single row to the stage height (min 0) so a tall chat thread
+     scrolls inside the .talk column instead of growing the whole stage. */
+  grid-template-rows: minmax(0, 1fr);
 }
 .pitch {
   padding: 6vh 4vw 4vh;
@@ -234,6 +238,8 @@ a:hover { text-decoration: underline; }
   letter-spacing: -0.02em;
 }
 .meta .l { font-size: 12px; color: var(--muted); line-height: 1.35; margin-top: 3px; }
+/* The mobile copy of the stats (rendered after the chat) is hidden on desktop. */
+.meta--mobile { display: none; }
 
 /* Right column of the stage = the live chat. The static chrome (.talk-top,
    .ask, .lock) lives in the page; the real widget renders its thread +
@@ -242,6 +248,7 @@ a:hover { text-decoration: underline; }
   display: flex;
   flex-direction: column;
   background: var(--surface);
+  height: 100%;
   min-height: 0;
 }
 .talk-top {
@@ -434,7 +441,31 @@ a:hover { text-decoration: underline; }
 .cta:hover { background: #fff; color: #0a0a0a; text-decoration: none; }
 
 @media (max-width: 860px) {
-  .stage { grid-template-columns: 1fr; min-height: auto; }
-  .pitch { border-right: none; border-bottom: 1.5px solid var(--ink); padding: 7vh 6vw 5vh; }
-  .talk { min-height: 70vh; }
+  /* Minimal mobile composition: header → headline → question → chat (fills the
+     first screen), then the stats, then the content bands. The stage stacks as
+     a flex column; the chat gets a definite height so its thread scrolls and
+     the composer stays pinned. The desktop pitch (.sub, in-pitch stats) is
+     trimmed, and a mobile copy of the stats renders after the stage. */
+  .stage {
+    display: flex;
+    flex-direction: column;
+    min-height: auto;
+  }
+  .pitch {
+    border-right: none;
+    justify-content: flex-start;
+    padding: 5vh 6vw 2vh;
+  }
+  .sub { display: none; }
+  .meta--desktop { display: none; }
+  .meta--mobile {
+    display: flex;
+    margin: 0;
+    padding: 24px 6vw;
+    max-width: none;
+  }
+  .talk {
+    height: 62svh;
+    min-height: 0;
+  }
 }

@@ -256,7 +256,7 @@ body.bb-chat-open #bb-chat-panel { display: flex; }\
 #bb-chat-send:disabled { opacity: 0.5; cursor: not-allowed; }\
 \
 /* Inline mode (homepage): frameless, fills the .talk column; the prototype chat panel. */\
-#bb-chat-panel.bb-chat-panel--inline { display: flex; position: static; right: auto; bottom: auto; flex-direction: column; flex: 1 1 auto; min-height: 0; width: 100%; max-width: 100%; height: auto; max-height: none; background: transparent; border: none; border-radius: 0; box-shadow: none; overflow: visible; }\
+#bb-chat-panel.bb-chat-panel--inline { display: flex; position: static; right: auto; bottom: auto; flex-direction: column; flex: 1 1 auto; min-height: 0; width: 100%; max-width: 100%; height: 100%; max-height: none; background: transparent; border: none; border-radius: 0; box-shadow: none; overflow: visible; }\
 .bb-chat-panel--inline #bb-chat-messages { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding: 0 26px 30px; }\
 .bb-chat-panel--inline .bb-begin { padding: 14px 18px 0; display: flex; align-items: center; gap: 8px; font-family: "Space Grotesk", sans-serif; font-weight: 500; font-size: 13px; letter-spacing: -0.01em; color: #0a0a0a; border-top: 1.5px solid #0a0a0a; }\
 .bb-chat-panel--inline .bb-begin-arr { color: #d40b1e; font-size: 15px; }\
