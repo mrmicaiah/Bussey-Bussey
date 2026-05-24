@@ -11,7 +11,8 @@ _Describe what this project is for. The manager will update this section as unde
 **Step M in progress — production readiness.** Scope in
 `context/step-M-scope.md`. Tracked as 10 subtasks (M.1 → M.10) with
 review after each. Sister doc `context/deployment-runbook.md` is being
-built up section by section as each subtask completes.
+built up section by section as each subtask completes. M.1–M.3 done;
+M.4 done (Claude side, awaiting topology review). Next: M.5.
 
 **M.1 done and reviewed.** `[env.staging]` and `[env.production]`
 blocks added to `worker/wrangler.toml` with `REPLACE_WITH_*` ID
@@ -48,11 +49,30 @@ env blocks (shadowed by the secret at runtime). New deferred-cleanup
 entry tracks the move back to PUBLIC `[vars]` once business email
 exists.
 
-Remaining M.3 work is user-side: paste staging Stripe `pk_test_…` into
-`wrangler.toml`, install 5 staging secrets (ANTHROPIC_API_KEY,
-STRIPE_SECRET_KEY, RESEND_API_KEY, SESSION_SECRET,
-ADMIN_NOTIFY_EMAILS) via `wrangler secret put`, verify via
-`wrangler secret list --env staging`.
+**M.3 fully closed.** All 5 staging secrets installed + verified,
+staging publishable key set, commits pushed, tree clean (user-confirmed).
+
+**M.4 done (Claude side — topology review pending).** Host topology
+decided: **PATH-BASED** (single origin). Everything serves under
+`busseyandbussey.com` — site at `/`, admin at `/admin/`, portal at
+`/portal/`, worker on `/api/*` and `/p/*`. The decision is forced by
+the as-built code: both SPAs fetch the API with relative `/api` paths +
+`credentials:'include'`, session cookies are host-only `SameSite=Strict`
+(no `Domain=`), and authed routes have no CORS-with-credentials — i.e.
+the stack only works same-origin. Path-based keeps that with ZERO
+auth/CORS/cookie code change and mirrors dev; a subdomain split would
+force a CORS + cross-subdomain-cookie refactor (or worker-routes on every
+subdomain). The one cost — Pages binds a whole hostname to one project,
+so the three front-end builds merge into one Pages deploy — is logged in
+`notes/deferred-cleanup.md` (revisit independent deploys post-v1).
+`worker/wrangler.toml`: `[env.*.vars]` URL bases rewritten to path-based
+same-origin values (dry-run clean both envs); commented `routes` blocks
+added for `/api/*` + `/p/*` per env (uncomment once the zone is Active —
+they'd fail a deploy otherwise). `context/deployment-runbook.md` §4
+filled in record-by-record; `context/env-vars.md` URL-base entries
+updated. Downstream: Stripe webhook URL for M.5 is
+`https://busseyandbussey.com/api/webhooks/stripe` (supersedes the
+`api.` guess in scope). DNS changes themselves are user-side (M-human).
 
 **v1 build structurally complete.** Step L (calling list) built and
 smoke-tested green; scope in `context/step-L-scope.md`, results in

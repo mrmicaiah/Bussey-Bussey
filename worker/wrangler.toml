@@ -82,9 +82,21 @@ name = "bussey-bussey-api-staging"
 # See context/env-vars.md for the full inventory.
 [env.staging.vars]
 ENV = "staging"
-ADMIN_URL_BASE = "https://admin-staging.busseyandbussey.com"
-PORTAL_URL_BASE = "https://portal-staging.busseyandbussey.com"
-DEMO_URL_BASE = "https://demo-staging.busseyandbussey.com"
+# M.4 topology = PATH-BASED, single origin. All surfaces live under one
+# hostname; the worker is mounted on /api/* and /p/* via routes (below).
+# Staging mirrors prod on a dedicated subdomain (staging.busseyandbussey.com)
+# rather than *.pages.dev — a real zone hostname is required for the worker
+# routes that keep the SPAs' relative /api calls same-origin (workers.dev
+# and pages.dev are different hosts, which would break that). The admin /
+# portal SvelteKit apps build with base paths /admin and /portal, so these
+# URL bases include the path segment (matches the dev values, which carry
+# /admin and /portal too). See context/deployment-runbook.md §4.
+ADMIN_URL_BASE = "https://staging.busseyandbussey.com/admin"
+PORTAL_URL_BASE = "https://staging.busseyandbussey.com/portal"
+# Demo iframe (${DEMO_URL_BASE}/demos/:token/) is served same-origin by the
+# site build; an explicit absolute same-origin value avoids any falsy-empty
+# edge case in the renderer.
+DEMO_URL_BASE = "https://staging.busseyandbussey.com"
 # ADMIN_NOTIFY_EMAILS is installed as a SECRET right now (not a public
 # var) because the value is a personal email — admin hasn't set up
 # business email at busseyandbussey.com yet. The placeholder below is a
@@ -120,6 +132,26 @@ fallthrough = true
 [env.staging.observability]
 enabled = true
 
+# Worker routes (M.4 — PATH-BASED topology). These mount the worker on
+# the API surface and the public presentation surface of the staging
+# hostname, in front of the Pages-served front end (worker routes take
+# precedence over a Pages custom domain on the same host, most-specific
+# pattern wins). The /api/* route covers chat, admin, portal, and Stripe
+# webhook traffic; /p/* covers client presentation links.
+#
+# LEFT COMMENTED until the busseyandbussey.com zone is active on
+# Cloudflare (M.4 human step). Activating these before the zone exists
+# makes `wrangler deploy --env staging` fail when it tries to bind the
+# route. Secret install + `--dry-run` verification (runbook §3) do NOT
+# need them. Uncomment once DNS is live, then deploy (runbook §6).
+# [[env.staging.routes]]
+# pattern = "staging.busseyandbussey.com/api/*"
+# zone_name = "busseyandbussey.com"
+#
+# [[env.staging.routes]]
+# pattern = "staging.busseyandbussey.com/p/*"
+# zone_name = "busseyandbussey.com"
+
 # ─── PRODUCTION ─────────────────────────────────────────────────────
 #
 # Deploy with `wrangler deploy --env production`. The Worker is
@@ -141,9 +173,16 @@ name = "bussey-bussey-api-production"
 # section 3 "Deferred production credentials."
 [env.production.vars]
 ENV = "production"
-ADMIN_URL_BASE = "https://admin.busseyandbussey.com"
-PORTAL_URL_BASE = "https://portal.busseyandbussey.com"
-DEMO_URL_BASE = "https://demo.busseyandbussey.com"
+# M.4 topology = PATH-BASED, single origin (see staging note above and
+# context/deployment-runbook.md §4). Admin/portal serve under /admin and
+# /portal on the apex; these URL bases carry the path segment so email
+# links resolve into the SPAs (e.g. ${ADMIN_URL_BASE}/leads/:id ->
+# https://busseyandbussey.com/admin/leads/:id).
+ADMIN_URL_BASE = "https://busseyandbussey.com/admin"
+PORTAL_URL_BASE = "https://busseyandbussey.com/portal"
+# Demo iframe served same-origin by the site build (absolute same-origin
+# value; see staging note).
+DEMO_URL_BASE = "https://busseyandbussey.com"
 # Installed as SECRET (same reason as staging — see notes/deferred-cleanup.md).
 # Real value set via:
 #   wrangler secret put ADMIN_NOTIFY_EMAILS --env production
@@ -173,3 +212,19 @@ fallthrough = true
 
 [env.production.observability]
 enabled = true
+
+# Worker routes (M.4 — PATH-BASED topology). Same rationale as the staging
+# routes above: the worker owns /api/* (chat + admin + portal + Stripe
+# webhooks) and /p/* (presentation links) on the apex, in front of the
+# Pages-served site/admin/portal.
+#
+# LEFT COMMENTED until the busseyandbussey.com zone is active AND the
+# production deployment gate clears (runbook §3 — production secrets +
+# pk_live_ key installed). Uncomment when deploying production (runbook §6).
+# [[env.production.routes]]
+# pattern = "busseyandbussey.com/api/*"
+# zone_name = "busseyandbussey.com"
+#
+# [[env.production.routes]]
+# pattern = "busseyandbussey.com/p/*"
+# zone_name = "busseyandbussey.com"

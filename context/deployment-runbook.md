@@ -19,10 +19,11 @@ Sections are organized by the workflow's natural order:
 9. **Backup** — what we have, what's missing (M.9)
 10. **Rollback** — how to revert each surface
 
-> **Status:** M.1, M.2, and most of M.3 complete (M.3.1, M.3.2, M.3.4,
-> M.3.5, M.3.7). M.3.3 (staging secrets installation) and M.3.6
-> (verification) pending user-provided secret values. Sections 4 onward
-> are skeleton headings for later subtasks (M.4 → M.10).
+> **Status:** M.1, M.2, M.3 complete (all secrets installed + verified).
+> M.4 (domain + DNS) documented below — topology decided (path-based),
+> wrangler.toml URL bases + commented routes updated; the DNS changes
+> themselves are the user's to make in the Cloudflare dashboard.
+> Sections 5 onward are skeleton headings for later subtasks (M.5 → M.10).
 
 ---
 
@@ -340,14 +341,269 @@ same time as `STRIPE_SECRET_KEY`, but it goes into `wrangler.toml`
 
 ## 4. Domain and DNS (M.4)
 
-_To be filled in by M.4._
+This section is what you (Micaiah) follow in the Cloudflare dashboard to
+route `busseyandbussey.com` at the infrastructure. The actual clicks are
+yours; everything below is the record-by-record map. **Review §4.0 before
+making any DNS change** — it locks the topology that the rest of the
+section (and the wrangler.toml edits already committed) depends on.
 
-Outline:
+### 4.0 Topology decision — PATH-BASED (recommended)
 
-- Recommended host topology (subdomains vs paths) with rationale
-- DNS records to create in Cloudflare's DNS panel
-- Custom Domain attachment to Pages + Worker routes
-- TLS verification
+Everything lives on **one origin**, split by path:
+
+| Path                  | Served by                          |
+|-----------------------|------------------------------------|
+| `busseyandbussey.com/`            | Site (Eleventy) — Pages            |
+| `busseyandbussey.com/admin/*`     | Admin SPA (SvelteKit) — Pages      |
+| `busseyandbussey.com/portal/*`    | Portal SPA (SvelteKit) — Pages     |
+| `busseyandbussey.com/api/*`       | Worker (chat, admin, portal, Stripe webhooks) |
+| `busseyandbussey.com/p/:token`    | Worker (client presentation pages) |
+| `busseyandbussey.com/demos/:token/` | Demo iframe assets — Pages (site build) |
+
+**Why path-based, not subdomains.** The decision is forced by how the
+code is already built — verified by reading the auth, CORS, and SPA
+fetch layers:
+
+1. **Both SPAs call the API with relative paths and credentials.**
+   `admin/src/lib/api.ts` and `portal/src/lib/api.ts` do
+   `fetch('/api/...', { credentials: 'include' })` — no host prefix. They
+   assume the API is same-origin. Dev confirms it: both Vite configs proxy
+   `/api` → `127.0.0.1:8787`, and the apps mount at `localhost:5173/admin`
+   and `localhost:5174/portal`. The SvelteKit builds use
+   `adapter-static` with base paths `/admin` and `/portal` — i.e. the
+   front end was architected path-based from the start.
+
+2. **Session cookies are host-only and `SameSite=Strict`.** The cookie
+   helpers (`worker/src/lib/cookies.ts`, `routes/admin/auth.ts`,
+   `routes/portal/auth.ts`) set `HttpOnly; Secure; SameSite=Strict;
+   Path=/` with **no `Domain=` attribute** → the cookie is bound to the
+   exact host that set it.
+
+3. **There is no CORS-with-credentials anywhere.** Only the anonymous
+   chat endpoints (`/api/chat/*`) send CORS headers, and they use
+   `Access-Control-Allow-Origin: *` with **no** `Allow-Credentials`
+   (`worker/src/routes/public/chat.ts`). Authenticated `/api/admin/*` and
+   `/api/portal/*` routes send no CORS headers at all.
+
+Put together: the app only works when the SPA and the API share an
+origin. **Path-based gives that for free** — one host, host-only cookies
+are correct, `SameSite=Strict` is correct and maximally protective, and
+CORS is a non-issue (no cross-origin authenticated request ever happens).
+Production then mirrors dev exactly.
+
+**A subdomain split (`admin.`, `portal.`, `api.`) would require one of
+two changes, both undesirable right before taking real money:**
+
+- **Option α — refactor the auth/CORS layer:** switch the SPAs to an
+  absolute `https://api.busseyandbussey.com` base, add CORS with a
+  reflected-Origin allowlist + `Access-Control-Allow-Credentials: true` +
+  preflight handling on every authenticated call, **and** widen the
+  session cookies to `Domain=.busseyandbussey.com` (and relax
+  `SameSite`). That is exactly the security-sensitive code you least want
+  to be changing late in v1.
+- **Option β — keep relative `/api` and mount the worker on every
+  subdomain** via routes (`admin.busseyandbussey.com/api/*`,
+  `portal.busseyandbussey.com/api/*`, plus `api.` for presentations).
+  This avoids the auth refactor but spreads the worker across 3–4
+  hostnames and still needs a base-path code change for clean URLs — more
+  routing surface to get right by hand for no functional gain over
+  path-based.
+
+**The one tradeoff of path-based** is on the deployment side, not the
+code side: Cloudflare Pages binds a *whole hostname* to *one* project, so
+three separate Pages projects can't share `busseyandbussey.com` by path
+natively. The site, admin, and portal builds are therefore assembled into
+**one Pages deploy** (site at `/`, the admin `build/` copied under
+`/admin/`, the portal `build/` under `/portal/` — the base paths line up
+exactly). This couples the three front-end deploys into one publish/rollback
+unit. For a single-operator v1 that is arguably *simpler* to operate (one
+deploy command, one rollback). The mechanics live in §6; revisiting
+independent per-surface deploys post-v1 is logged in
+`notes/deferred-cleanup.md`.
+
+> Worker routes take precedence over a Pages custom domain on the same
+> hostname (most-specific pattern wins), so `…/api/*` and `…/p/*` are
+> handled by the worker while every other path falls through to the
+> merged Pages project. This is the documented Cloudflare behavior the
+> topology relies on.
+
+### 4.1 Prerequisite — domain on Cloudflare
+
+`busseyandbussey.com` must be an **active zone on the Cloudflare account**
+before any of the below works (Pages custom domains and worker routes are
+zone-level features).
+
+1. Cloudflare dashboard → **Add a site** → `busseyandbussey.com`.
+2. Cloudflare assigns two nameservers. At your registrar, replace the
+   domain's nameservers with those two.
+3. Wait for the zone status to flip to **Active** (minutes to a few hours).
+4. Set SSL/TLS mode to **Full (strict)** (dashboard → SSL/TLS → Overview).
+   Universal SSL auto-provisions the edge certificate.
+
+Until the zone is Active, leave the wrangler.toml `routes` blocks
+commented (they already are — see §4.4).
+
+### 4.2 DNS records
+
+With path-based topology the DNS surface is tiny — and most records are
+**created for you** when you attach the custom domains in §4.3 rather than
+hand-entered. The end state:
+
+| Type  | Name      | Target / Value                    | Proxy   | Who creates it                         |
+|-------|-----------|-----------------------------------|---------|----------------------------------------|
+| CNAME | `@` (apex)| `<prod-pages-project>.pages.dev`  | Proxied | Auto — added when you attach the apex as a Pages custom domain (§4.3). Shows as a flattened CNAME / synthetic A+AAAA. |
+| CNAME | `www`     | `busseyandbussey.com`             | Proxied | You — then a redirect rule `www → apex` (§4.3), or attach `www` as a second Pages custom domain. |
+| CNAME | `staging` | `<staging-pages-project>.pages.dev` | Proxied | Auto — added when you attach `staging.busseyandbussey.com` as a custom domain to the staging Pages project. |
+
+Notes:
+- **Everything must be Proxied (orange cloud).** Worker routes and Pages
+  only intercept proxied traffic; a grey-cloud (DNS-only) record bypasses
+  both.
+- There is **no `api`, `admin`, `portal`, or `demo` record** — that is the
+  whole point of path-based. If you see leftover `admin-staging` /
+  `portal-staging` / `demo-staging` ideas from earlier drafts, ignore
+  them; they are not part of this topology.
+- Email/sending records (SPF/DKIM/DMARC for Resend on
+  `busseyandbussey.com`) are a separate M-human task (Resend domain
+  verification) and are independent of this routing.
+
+### 4.3 Pages custom-domain attachment
+
+**Production (merged site+admin+portal Pages project):**
+1. Pages → the production project → **Custom domains** → **Set up a
+   domain** → `busseyandbussey.com`. Cloudflare creates the proxied apex
+   DNS record automatically and provisions TLS.
+2. Add `www.busseyandbussey.com` too, then create a **redirect rule**
+   (Rules → Redirect Rules) `www.busseyandbussey.com/*` →
+   `https://busseyandbussey.com/$1` (301) so the apex is canonical.
+
+**Staging (merged staging Pages project):**
+3. Pages → the staging project → **Custom domains** → add
+   `staging.busseyandbussey.com`.
+
+> Staging uses a real subdomain rather than the project's free
+> `*.pages.dev` URL **on purpose**: the worker routes that keep the SPAs'
+> relative `/api` calls same-origin can only attach to a zone hostname.
+> `*.pages.dev` (Pages) and `*.workers.dev` (Worker) are different hosts,
+> so the relative-`/api` model can't be exercised there. If you'd rather
+> not spend a staging subdomain, staging behavior is already faithfully
+> reproduced locally by the Vite dev proxy (same-origin `/api`); the
+> staging subdomain exists for a true pre-prod dress rehearsal.
+
+### 4.4 Worker routes
+
+The worker is mounted on the API and presentation paths via routes
+declared in `worker/wrangler.toml`. They are **currently commented out**
+and must be uncommented once the zone is Active (§4.1) — activating them
+before the zone exists makes `wrangler deploy --env <env>` fail trying to
+bind a route on a non-existent zone.
+
+Production (`[env.production]`):
+```toml
+[[env.production.routes]]
+pattern = "busseyandbussey.com/api/*"
+zone_name = "busseyandbussey.com"
+
+[[env.production.routes]]
+pattern = "busseyandbussey.com/p/*"
+zone_name = "busseyandbussey.com"
+```
+
+Staging (`[env.staging]`):
+```toml
+[[env.staging.routes]]
+pattern = "staging.busseyandbussey.com/api/*"
+zone_name = "busseyandbussey.com"
+
+[[env.staging.routes]]
+pattern = "staging.busseyandbussey.com/p/*"
+zone_name = "busseyandbussey.com"
+```
+
+The single `/api/*` route covers **all** API traffic — public chat,
+authenticated admin, authenticated portal, and the Stripe webhook
+(`/api/webhooks/stripe`). The `/p/*` route serves client presentation
+pages. No separate route is needed for `/demos/*` (those are static
+assets served by the Pages project, not the worker).
+
+Order of operations: uncomment → `wrangler deploy --env <env>` creates
+the routes as part of the deploy (covered in §6). You can also add routes
+by hand in the dashboard (Workers → the worker → Triggers → Routes), but
+keeping them in wrangler.toml makes the deploy reproducible.
+
+### 4.5 How `/p/:token` (presentations) resolves
+
+The presentation page is **worker-served HTML**, not a Pages asset
+(`worker/src/routes/public/presentation.ts`):
+
+- A client opens `https://busseyandbussey.com/p/<token>`. The
+  `busseyandbussey.com/p/*` worker route catches it (takes precedence over
+  Pages), and the worker returns a self-contained HTML shell (inline CSS +
+  JS, no external bundle).
+- The page polls `GET /p/<token>/data` (same path prefix, same worker
+  route) for live sync, with `credentials: 'omit'` — the token in the URL
+  is the only authorization, no cookies.
+- It embeds a demo iframe at `${DEMO_URL_BASE}/demos/<token>/`, which with
+  the path-based values resolves to
+  `https://busseyandbussey.com/demos/<token>/` — **same-origin**, served
+  by the Pages site build. (The presentation response sets
+  `X-Frame-Options: SAMEORIGIN`; the demo being same-origin keeps framing
+  clean.)
+- Admin's "Preview presentation" button opens
+  `${VITE_API_URL_BASE}/p/<token>` =
+  `https://busseyandbussey.com/p/<token>` — same route, same worker.
+
+### 4.6 TLS
+
+- Universal SSL covers the apex and proxied subdomains automatically once
+  each custom domain is attached. No manual cert work.
+- Confirm SSL/TLS mode = **Full (strict)** (§4.1 step 4).
+- After attaching, the Pages **Custom domains** panel shows each domain's
+  certificate status — wait for **Active** before smoke-testing.
+
+### 4.7 Downstream effects of this decision
+
+- **Stripe webhook URL (M.5):** with path-based, the production endpoint
+  is **`https://busseyandbussey.com/api/webhooks/stripe`** (staging:
+  `https://staging.busseyandbussey.com/api/webhooks/stripe`). This
+  supersedes the `api.busseyandbussey.com/...` guess in the M.5 scope
+  outline — use the path-based URL when configuring the Stripe dashboard.
+- **wrangler.toml URL bases (committed in this subtask):**
+  `ADMIN_URL_BASE`, `PORTAL_URL_BASE`, `DEMO_URL_BASE` now carry
+  path-based, same-origin values in both `[env.staging.vars]` and
+  `[env.production.vars]`. Verified via `wrangler deploy --dry-run --env
+  staging` and `--env production` (both list the new bases cleanly).
+- **Front-end build-time vars (set during M.6, documented in
+  `context/env-vars.md`):** `VITE_API_URL_BASE` (admin) and
+  `BUSSEY_API_BASE` (site) become same-origin —
+  `https://busseyandbussey.com` (prod) / `https://staging.busseyandbussey.com`
+  (staging). The SPAs' general data-fetching stays relative-path; no API
+  base prefix is involved there.
+
+### 4.8 Verification (after DNS is live + deploys done)
+
+```bash
+# Apex serves the site (Pages).
+curl -sI https://busseyandbussey.com/            | grep -i 'HTTP/\|server\|cf-'
+
+# Admin + portal SPAs served under their paths (expect 200 + HTML).
+curl -sI https://busseyandbussey.com/admin/      | head -1
+curl -sI https://busseyandbussey.com/portal/     | head -1
+
+# API reaches the worker (the service banner is JSON at /, but any
+# /api/* path should be worker-handled — an unauthenticated admin call
+# should return 401 JSON, not a Pages 404 HTML page).
+curl -s  https://busseyandbussey.com/api/admin/me        # -> {"error":...} 401, proves worker route wins
+curl -sI https://busseyandbussey.com/p/nonexistent-token # -> worker response, not Pages 404
+
+# Confirm there is NO admin/api/portal subdomain (should not resolve to a
+# distinct service).
+curl -sI https://api.busseyandbussey.com/ 2>&1 | head -1   # expected: does not resolve / no such host
+```
+
+A green run = apex shows the site, `/admin` + `/portal` load the SPAs,
+`/api/*` and `/p/*` are answered by the worker (not Pages), and no
+stray subdomain exists.
 
 ---
 

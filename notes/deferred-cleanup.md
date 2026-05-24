@@ -9,13 +9,14 @@ Each entry: what, why deferred, when to revisit. New entries go at the top
 **By urgency to revisit:**
 
 - *Before first real client signs anything:* [Contract template requires lawyer review](#contract-template-requires-lawyer-review-before-real-client-signing) · [Stripe dev-placeholder mode for setup-payment](#stripe-dev-placeholder-mode-for-setup-payment)
-- *Before first production traffic:* [CORS on `/api/chat/*` is wide-open](#cors-on-apichat-is-wide-open) · [Session row cleanup (D1)](#session-row-cleanup-d1) · [Production routing for `/p/:token/demo/`](#production-routing-for-ptokendemo)
+- *Before first production traffic:* [CORS on `/api/chat/*` is wide-open](#cors-on-apichat-is-wide-open) · [Session row cleanup (D1)](#session-row-cleanup-d1)
 - *Triggered by a second admin user:* [v1 bootstrap admin script — replace before second admin](#v1-bootstrap-admin-script--replace-before-second-admin) · [Owner-picker UX deferred until multi-admin](#owner-picker-ux-deferred-until-multi-admin) · [`/api/admin/auth/change-password` does not exist](#apiadminauthchange-password-does-not-exist)
-- *Triggered by feature need:* [ADMIN_NOTIFY_EMAILS back to PUBLIC once business email exists](#admin_notify_emails-is-temporarily-a-secret-move-back-to-public-once-business-email-exists) · [Notification preferences UI shipped but not yet enforced](#notification-preferences-ui-shipped-but-not-yet-enforced-in-send-logic) · [Signed-contract download is Markdown, not PDF](#signed-contract-download-is-markdown-not-pdf) · [`/api/portal/auth/change-password` is still stubbed](#apiportalauthchange-password-is-still-stubbed) · [Notes fields are single TEXT, spec asked for append-only](#notes-fields-are-single-text-spec-asked-for-append-only-with-timestamps) · [Margin/buffer indicators not implemented](#marginbuffer-indicators-not-implemented) · [Conversation context is the last 20 messages](#conversation-context-is-the-last-20-messages)
+- *Triggered by feature need:* [Front-ends share one Pages deploy (path-based topology)](#front-end-surfaces-share-one-pages-deploy-path-based-topology) · [Optional `/p/:token/demo/` spec-prefix rewrite](#production-routing-for-ptokendemo) · [ADMIN_NOTIFY_EMAILS back to PUBLIC once business email exists](#admin_notify_emails-is-temporarily-a-secret-move-back-to-public-once-business-email-exists) · [Notification preferences UI shipped but not yet enforced](#notification-preferences-ui-shipped-but-not-yet-enforced-in-send-logic) · [Signed-contract download is Markdown, not PDF](#signed-contract-download-is-markdown-not-pdf) · [`/api/portal/auth/change-password` is still stubbed](#apiportalauthchange-password-is-still-stubbed) · [Notes fields are single TEXT, spec asked for append-only](#notes-fields-are-single-text-spec-asked-for-append-only-with-timestamps) · [Margin/buffer indicators not implemented](#marginbuffer-indicators-not-implemented) · [Conversation context is the last 20 messages](#conversation-context-is-the-last-20-messages)
 - *Triggered by a future data shape:* [`updated_at` only on `proposal`](#updated_at-only-on-proposal-other-entities-still-missing-it) · [`setup_and_monthly` unit_type contributes to BOTH buckets](#setup_and_monthly-unit_type-contributes-to-both-buckets) · [Clone of accepted proposal copies opportunity name verbatim](#clone-of-accepted-proposal-copies-opportunity-name-verbatim) · [Stripe subscription status enum is a 3-bucket lossy projection](#stripe-subscription-status-enum-is-a-3-bucket-lossy-projection) · [`notification.kind` enum missing change_order_rejected + change_order_failed](#notificationkind-enum-is-missing-change_order_rejected--change_order_failed) · [Temp password plaintext cached in KV with 24h TTL](#temp-password-plaintext-cached-in-kv-with-24h-ttl) · [client.status flips to 'active' on acceptance](#clientstatus-flips-to-active-on-acceptance-not-a-separate-activating-state) · [Status state-machines server-permissive client-restrictive](#status-state-machines-are-server-permissive-client-restrictive) · [Proposal totals cache-and-update on the proposal row](#proposal-totals-cache-and-update-on-the-proposal-row) · [Presentation HTML inlines its own JS bundle](#presentation-html-inlines-its-own-10-kb-js-bundle) · [Calculator's custom-line-item prompt is `window.prompt()`](#calculators-custom-line-item-prompt-is-windowprompt) · [Chat system prompt lives in a `.ts` file, not a `.md`](#chat-system-prompt-lives-in-a-ts-file-not-a-md) · [Chat dev-mode stub when ANTHROPIC_API_KEY is placeholder](#chat-dev-mode-stub-when-anthropic_api_key-is-placeholder) · [Admin SPA framework decision (locked)](#admin-spa-framework-decision-locked) · [`@cloudflare/workers-types` version bump](#cloudflareworkers-types-version-bump)
 
 **By step in which the deferral was decided** (newest first):
 
+- *M.4 build:* [Front-ends share one Pages deploy (path-based topology)](#front-end-surfaces-share-one-pages-deploy-path-based-topology) · [`/p/:token/demo/` spec-prefix rewrite reduced to optional](#production-routing-for-ptokendemo)
 - *M.3 build:* [ADMIN_NOTIFY_EMAILS back to PUBLIC once business email exists](#admin_notify_emails-is-temporarily-a-secret-move-back-to-public-once-business-email-exists)
 - *K2 build:* [Notification preferences UI shipped but not yet enforced](#notification-preferences-ui-shipped-but-not-yet-enforced-in-send-logic)
 - *K1 build:* [`notification.kind` enum missing change_order_rejected + change_order_failed](#notificationkind-enum-is-missing-change_order_rejected--change_order_failed)
@@ -37,6 +38,35 @@ URL," and "Calculator's 'Preview presentation' URL hardcoded." Those
 entries are removed from this file.)
 
 ---
+
+## Front-end surfaces share one Pages deploy (path-based topology)
+
+- **What:** M.4 chose a path-based host topology — site, admin, and portal
+  all serve under one origin (`busseyandbussey.com`) at `/`, `/admin/`,
+  `/portal/`, with the worker on `/api/*` and `/p/*`. Because a Cloudflare
+  Pages custom domain binds an entire hostname to a single project, the
+  three front-end builds (Eleventy site, SvelteKit admin, SvelteKit portal)
+  are assembled into ONE Pages project's output (admin `build/` copied
+  under `/admin/`, portal under `/portal/`). They deploy and roll back as
+  one unit. The build/merge mechanics are M.6's to detail.
+- **Why this approach:** the auth/session/CORS layer is built same-origin
+  (relative `/api`, host-only `SameSite=Strict` cookies, no
+  CORS-with-credentials). Path-based preserves that with zero code change;
+  a subdomain split would force a CORS + cross-subdomain-cookie auth
+  refactor, or worker-routes-on-every-subdomain (runbook §4.0). The deploy
+  coupling is the accepted cost — and for a single-operator v1, one
+  publish + one rollback is arguably simpler to operate.
+- **Trade-off:** you cannot redeploy just the admin SPA (or just the site)
+  without rebuilding and republishing the combined Pages bundle. There is
+  no independent per-surface deploy cadence under this layout.
+- **When to revisit:** if/when independent per-surface deploys matter (a
+  separate front-end team, or frequent site-only content edits that
+  shouldn't touch the SPAs). Options then: (a) split into subdomains +
+  do the auth refactor (Option α in runbook §4.0); (b) stay path-based but
+  use Cloudflare Origin Rules + URL rewrites to mount three separate Pages
+  projects on the one hostname; (c) a small router worker in front. All
+  post-v1.
+- **Decided:** during step M.4.
 
 ## ADMIN_NOTIFY_EMAILS is temporarily a SECRET; move back to PUBLIC once business email exists
 
@@ -225,10 +255,11 @@ entries are removed from this file.)
 
 ## Production routing for `/p/:token/demo/`
 
-- **What:** Per spec, demo iframes load from `/p/:opportunity_token/demo/`. For v1, the iframe URL is constructed as `${DEMO_URL_BASE}/demos/:token/` — `DEMO_URL_BASE` defaults to empty in prod (same-origin) and points at `http://localhost:8080` in dev (Eleventy). This means the prod URL becomes `/demos/:token/`, not the spec's `/p/:token/demo/`.
-- **Why deferred:** the URL prefix mismatch is harmless if the prod host serves the same files at either prefix. Doing the actual path rewrite requires either Eleventy passthrough with a glob rename or a Cloudflare Pages routing rule — both depend on deploy topology we haven't finalized.
-- **When to revisit:** when we decide where the public site is hosted. Likely a single Pages rewrite (`/p/:token/demo/* → /demos/:token/*`) or a worker route that proxies. Both are 30-line fixes.
-- **Decided:** during step H build.
+- **What:** Per spec, demo iframes load from `/p/:opportunity_token/demo/`. For v1, the iframe URL is constructed as `${DEMO_URL_BASE}/demos/:token/`. This means the prod URL becomes `/demos/:token/`, not the spec's `/p/:token/demo/`.
+- **Update (M.4 — topology half resolved):** the path-based topology finalizes the hosting question. The demo is served **same-origin** by the merged Pages project at `/demos/:token/`, and `DEMO_URL_BASE` is now an explicit absolute same-origin value (`https://busseyandbussey.com`, staging `https://staging.busseyandbussey.com`) in `worker/wrangler.toml` — so the iframe loads `https://busseyandbussey.com/demos/:token/`, same-origin with the worker-served `/p/:token` page. **This is no longer a production-traffic blocker.**
+- **Why still open (and now optional):** only the cosmetic prefix mismatch remains — spec wanted `/p/:token/demo/`, actual is `/demos/:token/`. Both serve the same files; nothing breaks.
+- **When to revisit:** purely optional. If we ever want the URL to read `/p/:token/demo/` for spec fidelity, add a Cloudflare Pages redirect rule `/p/:token/demo/* → /demos/:token/*` (a one-liner). Not required for launch.
+- **Decided:** during step H build; hosting/topology resolved in M.4.
 
 ## Presentation HTML inlines its own ~10 KB JS bundle
 

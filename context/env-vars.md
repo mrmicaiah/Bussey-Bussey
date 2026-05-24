@@ -148,10 +148,13 @@ or referenced in worker / admin / portal code paths is listed.
 - **Purpose**: Root URL of the admin SPA. Used in admin-facing email
   bodies (new-lead notifications, change-order failure alerts).
 - **Sensitivity**: PUBLIC.
-- **Environments**: dev (`http://localhost:5173/admin`), staging
-  (`https://admin-staging.busseyandbussey.com`), production
-  (`https://admin.busseyandbussey.com`).
+- **Environments** (M.4 = path-based, single origin; admin SPA builds with
+  SvelteKit base path `/admin`, so the base carries that segment): dev
+  (`http://localhost:5173/admin`), staging
+  (`https://staging.busseyandbussey.com/admin`), production
+  (`https://busseyandbussey.com/admin`).
 - **Format**: no trailing slash; code constructs `${ADMIN_URL_BASE}/leads/:id` etc.
+  e.g. production `https://busseyandbussey.com/admin/leads/:id`.
 
 ### `PORTAL_URL_BASE`
 
@@ -159,9 +162,10 @@ or referenced in worker / admin / portal code paths is listed.
   client-facing email bodies (activation welcome, change-order
   review prompts, payment receipts, walkthrough handoff).
 - **Sensitivity**: PUBLIC.
-- **Environments**: dev (`http://localhost:5174/portal`), staging
-  (`https://portal-staging.busseyandbussey.com`), production
-  (`https://portal.busseyandbussey.com`).
+- **Environments** (M.4 = path-based; portal SPA base path `/portal`): dev
+  (`http://localhost:5174/portal`), staging
+  (`https://staging.busseyandbussey.com/portal`), production
+  (`https://busseyandbussey.com/portal`).
 - **Format**: no trailing slash.
 
 ### `DEMO_URL_BASE`
@@ -170,11 +174,15 @@ or referenced in worker / admin / portal code paths is listed.
   on the presentation page. Iframe src is
   `${DEMO_URL_BASE}/demos/:token/`.
 - **Sensitivity**: PUBLIC.
-- **Environments**: dev (`http://localhost:8080` — Eleventy),
-  staging (`https://demo-staging.busseyandbussey.com`), production
-  (`https://demo.busseyandbussey.com`). The production hostname
-  may collapse to same-origin (`""`) after M.4 DNS decisions.
-- **Format**: no trailing slash.
+- **Environments** (M.4 = path-based, single origin; the demo is served by
+  the site build at `/demos/:token/` on the same host as the worker-served
+  presentation page): dev (`http://localhost:8080` — Eleventy), staging
+  (`https://staging.busseyandbussey.com`), production
+  (`https://busseyandbussey.com`).
+- **Format**: no trailing slash. An explicit absolute same-origin value is
+  used (rather than `""`) to avoid any falsy-empty edge case in the
+  presentation renderer; the iframe src resolves to
+  `https://busseyandbussey.com/demos/:token/`, same-origin with `/p/:token`.
 
 ### `STRIPE_PUBLISHABLE_KEY`
 
@@ -202,11 +210,17 @@ or referenced in worker / admin / portal code paths is listed.
 - **Sensitivity**: PUBLIC (build-time constant, ends up in the SPA
   bundle).
 - **Source**: `admin/.env` (or `.env.local` / `.env.production`).
-- **Environments**: dev defaults to `http://localhost:8787` if unset.
-  Staging: `https://api-staging.busseyandbussey.com` (or wherever
-  the staging worker lands). Production: `https://api.busseyandbussey.com`.
+- **Environments** (M.4 = path-based; the worker serves `/p/:token`
+  same-origin via a route, so this is just the origin): dev defaults to
+  `http://localhost:8787` if unset. Staging:
+  `https://staging.busseyandbussey.com`. Production:
+  `https://busseyandbussey.com`.
 - **Note**: the admin Svelte code reads with a `?? 'http://localhost:8787'`
-  fallback so local dev works without ever setting the var.
+  fallback so local dev works without ever setting the var. Set this in
+  `admin/.env.production` / `.env.staging` at build time (M.6). The general
+  data-fetching layer is relative-path and does NOT use this var — it only
+  affects the "Preview presentation" button, which opens
+  `${VITE_API_URL_BASE}/p/:token`.
 
 ---
 
@@ -218,8 +232,12 @@ or referenced in worker / admin / portal code paths is listed.
 - **Sensitivity**: PUBLIC.
 - **Source**: process env at Eleventy build time
   (`site/src/_data/site.js`).
-- **Environments**: dev defaults to `http://localhost:8787`; staging
-  + production set explicitly in Pages env config.
+- **Environments** (M.4 = path-based; chat posts to `/api/chat/*`
+  same-origin via the worker route): dev defaults to
+  `http://localhost:8787`; staging `https://staging.busseyandbussey.com`,
+  production `https://busseyandbussey.com` — set in the Pages build env
+  config (M.6). (The chat endpoints are also CORS-`*`, so a cross-origin
+  value would still work; same-origin is simplest.)
 
 ---
 
