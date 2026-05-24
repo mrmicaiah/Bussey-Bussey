@@ -13,9 +13,9 @@ _Describe what this project is for. The manager will update this section as unde
 review after each. Sister doc `context/deployment-runbook.md` is being
 built up section by section as each subtask completes. M.1–M.4 done
 (topology approved, zone Active, routes live); M.5 documented (user-side
-dashboard + secret install pending); M.6 deploy PLAN written (§6 + §10) —
-NOT executed, awaiting user review + a discrete go-ahead for the staging
-deploy.
+dashboard + secret install pending); M.6 staging deploy DONE + verified
+on `staging.busseyandbussey.com` and now git-connected (push-to-`main`
+auto-deploys the staging front end); the production mirror stays gated.
 
 **M.1 done and reviewed.** `[env.staging]` and `[env.production]`
 blocks added to `worker/wrangler.toml` with `REPLACE_WITH_*` ID
@@ -120,6 +120,29 @@ production / local on 2026-05-23; the real remote seed is step 6.3.6 of
 the staging sequence (user runs it to capture the password). Deferred-
 cleanup entry slimmed to residual polish (no audit_log row; not an
 interactive CLI). Nothing deployed; holding for review + go-ahead.
+
+**M.6 staging deploy DONE + git-connected (2026-05-24).** The staging
+front end is live and verified on the real hostname
+`staging.busseyandbussey.com`: `/admin/leads` → `Bussey · Admin`,
+`/portal/billing/<id>` → `Bussey · Client Portal`, `/zzz` → site 404,
+`/api/chat/session` → 201. (The worker's zone-level routes survived the
+Pages-project swap, as expected — routes are independent of which Pages
+project owns the hostname.) Staging is now served by a **NEW git-connected
+Pages project `bussey-bussey-staging`** — Cloudflare can't convert a
+Direct-Upload project to Git, so a fresh project was required; build
+command `pnpm run build:pages` (`scripts/build-pages.sh`), output `dist/`.
+`staging.busseyandbussey.com` was cut over from the old Direct-Upload
+project `bussey-bussey-web-staging` to the new one, so **a push to `main`
+now auto-deploys the staging front end.** The old `bussey-bussey-web-staging`
+project is now **vestigial** (no domain, not deployed to; keep-or-delete
+logged in `notes/deferred-cleanup.md` — recommend deleting once the
+git-connected path has proven out). **The worker (`bussey-bussey-api-staging`)
+still deploys MANUALLY** via `wrangler deploy --env staging` — git-connect
+builds the front end ONLY, so a worker-code change still needs the manual
+deploy. The manual `wrangler pages deploy` fallback now retargets
+`--project-name bussey-bussey-staging`. Production remains fully gated
+(runbook §6.7). **New reality: a push to `main` is now a live staging
+deploy — flag what a push will ship before pushing.**
 
 **v1 build structurally complete.** Step L (calling list) built and
 smoke-tested green; scope in `context/step-L-scope.md`, results in

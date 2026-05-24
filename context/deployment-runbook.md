@@ -780,7 +780,7 @@ Production delivery is verified as part of the M.10 production smoke test
 | Surface | What | Deploy unit | Name |
 |---------|------|-------------|------|
 | Worker (API) | chat + admin + portal + Stripe webhook + `/p/:token` | `wrangler deploy --env <env>` | `bussey-bussey-api-staging` / `-production` (already set in `wrangler.toml`) |
-| Front end | **one merged Pages project** = site (`/`) + admin (`/admin/`) + portal (`/portal/`) | `wrangler pages deploy <dir>` | proposed: `bussey-bussey-web-staging` / `bussey-bussey-web-production` |
+| Front end | **one merged Pages project** = site (`/`) + admin (`/admin/`) + portal (`/portal/`) | **staging:** git push to `main` (auto, §6.9) — fallback `wrangler pages deploy <dir>`; **production:** `wrangler pages deploy <dir>` | staging `bussey-bussey-staging` (git-connected; the old `…-web-staging` Direct-Upload project is vestigial) / production `bussey-bussey-web-production` |
 
 The merged Pages project is the M.4 consequence (Pages binds a whole
 hostname to one project — see §4.0 and the deferred-cleanup entry). The
@@ -906,17 +906,24 @@ dist/
 
 1. **Pre-deploy checks** (§6.1) — green.
 2. **Build + assemble** with staging env values (§6.2) → `dist/`.
-3. **Deploy the merged Pages project.** `wrangler` is installed **only in
+3. **Deploy the merged Pages project.**
+   > **As of 2026-05-24 staging is git-connected (§6.9): the primary path is
+   > `git push origin main`, which auto-builds + deploys the staging front
+   > end. The manual commands below are now the FALLBACK, retargeted to the
+   > git-connected project `bussey-bussey-staging` (NOT the old
+   > `…-web-staging`, which is vestigial).** The project already exists, so
+   > skip the `project create` step in normal use.
+
+   `wrangler` is installed **only in
    `worker/`** (no root binary), and `wrangler pages deploy` must run from a
    directory with **no Workers `wrangler.toml`** (repo root qualifies; do
    NOT run it from `worker/`, whose toml is a Workers config). Run from repo
-   root via the worker's binary, pre-creating the project so the run is
-   non-interactive:
+   root via the worker's binary:
    ```bash
-   # one-time: create the project, production branch = main (non-interactive)
-   ./worker/node_modules/.bin/wrangler pages project create bussey-bussey-web-staging --production-branch main
-   # deploy dist as the production deployment of that project
-   ./worker/node_modules/.bin/wrangler pages deploy dist --project-name bussey-bussey-web-staging --branch main
+   # one-time (already done for staging): create the project, prod branch = main
+   ./worker/node_modules/.bin/wrangler pages project create bussey-bussey-staging --production-branch main
+   # manual fallback deploy of dist as the production deployment of that project
+   ./worker/node_modules/.bin/wrangler pages deploy dist --project-name bussey-bussey-staging --branch main
    ```
    (Skipping the pre-create makes `pages deploy` prompt to create the
    project + for a production-branch name — answer create=yes, branch=`main`.
@@ -1097,11 +1104,31 @@ this subtask).
 
 ### 6.9 Git-connected auto-deploy (staging front end)
 
-Optional CI path that replaces the manual `wrangler pages deploy` for the
-**staging front end** with an automatic build on every push to `main`. The
-manual wrangler path (§6.3) is retained as a fallback throughout. **Worker
-deploys stay separate** (`wrangler deploy --env staging`); git-connected
-Pages builds the front end only.
+> **STATUS: LIVE (2026-05-24).** Staging is git-connected and the domain is
+> cut over — see "Cutover — DONE" below. **A push to `main` now
+> auto-deploys the staging front end.** The manual wrangler path (§6.3) is
+> retained as a fallback, retargeted to `--project-name bussey-bussey-staging`.
+
+Git-connected CI path that replaces the manual `wrangler pages deploy` for
+the **staging front end** with an automatic build on every push to `main`.
+**Worker deploys stay separate** (`wrangler deploy --env staging`);
+git-connected Pages builds the front end ONLY.
+
+> **⚠️ A `main` push deploys the FRONT END only — the worker does NOT
+> auto-ship.** If you change worker code (`worker/src/**`, `worker/wrangler.toml`,
+> a secret), you MUST still run `cd worker && pnpm exec wrangler deploy --env
+> staging` by hand. The git-connected Pages build runs `build-pages.sh`,
+> which builds site/admin/portal and assembles `dist/` — it never touches
+> the worker. Symptom of forgetting: front-end changes show up on
+> `staging.busseyandbussey.com` after a push, but API/behavior changes do
+> not, because the worker is still running its last *manual* deploy.
+>
+> **Equally: a `main` push that touches NO front-end source still triggers
+> an auto-build** (CF rebuilds on every `main` push regardless of what
+> changed). A docs-only or worker-only commit therefore produces a
+> byte-identical front-end `dist/` and redeploys it — harmless (no visible
+> change), but be aware the build runs. Know what a push will ship before
+> you push.
 
 **The single build command is `scripts/build-pages.sh`** (root script
 `pnpm run build:pages`). It is the build+assemble half of §6.2/§6.3 minus
@@ -1109,14 +1136,18 @@ the deploy — Cloudflare deploys `dist/` itself. It bakes in the Option A
 per-subtree `404.html` copies, so a git build produces byte-identical
 output to a manual `wrangler pages deploy dist`.
 
-#### ⚠️ Blocker: you cannot add Git to an existing Direct Upload project
+#### ⚠️ Why a NEW project was needed (historical — resolved)
 `bussey-bussey-web-staging` was created via Direct Upload (`wrangler pages
 deploy`). Cloudflare does **not** allow converting a Direct Upload project
-to Git integration (one-way restriction). You must **create a NEW
-git-connected project** (Pages projects can't be renamed; the `*.pages.dev`
-name is cosmetic since the custom domain is what serves). The git-connected
+to Git integration (one-way restriction). So a **NEW git-connected project**
+had to be created (Pages projects can't be renamed; the `*.pages.dev` name
+is cosmetic since the custom domain is what serves). The git-connected
 project still accepts `wrangler pages deploy --project-name <new>` as a
-manual fallback.
+manual fallback. **Outcome:** the new project `bussey-bussey-staging` is now
+live + serving `staging.busseyandbussey.com`; the old
+`bussey-bussey-web-staging` is **vestigial** (no domain attached, never
+deployed to again). Keep-or-delete decision is logged in
+`notes/deferred-cleanup.md`.
 
 #### Build settings (new project)
 | Setting | Value |
@@ -1153,26 +1184,33 @@ order to manage).
   the production gate above). Revisit auto-deploying production post-v1
   (release branch or deploy hook so it never auto-ships on a `main` push).
 
-#### Non-destructive cutover (validate before moving the domain)
-1. Confirm the routing fix is green on the current project (done).
-2. Create the new git-connected project (settings above). Push `main` first
-   so the build script is on `origin/main` — the first build pulls
-   `origin/main` HEAD.
-3. Let it build → note its `*.pages.dev`. **Validate routing on the
-   `*.pages.dev`**: `/admin/leads`+`/admin/leads/<id>`→admin shell,
-   `/portal/<deep>`→portal shell, `/zzz`→site 404. (Skip `/api` — the worker
-   isn't on `*.pages.dev`.)
-4. Only once green, **move `staging.busseyandbussey.com`**: detach from the
-   old project → attach to the new one. Wait for cert **Active**.
-5. Re-run the full §6.4 verification on `staging.busseyandbussey.com`
-   (now `/api/*` works too — the worker routes are already live on that
-   host). Old project becomes vestigial; delete after cutover.
-6. **Wrangler fallback** now targets the new project:
-   `wrangler pages deploy dist --project-name bussey-bussey-staging`.
+#### Cutover — DONE (2026-05-24)
+The non-destructive cutover below was executed and verified end-to-end;
+kept as the record (and as the template for the production git-connect
+later).
+1. ✅ Routing fix confirmed green on the prior project.
+2. ✅ Created the git-connected project `bussey-bussey-staging` (settings
+   above); pushed `main` so the first build pulled `origin/main` HEAD.
+3. ✅ Validated routing on its `*.pages.dev` (admin/portal shells, `/zzz`
+   → site 404; `/api` skipped — not on `*.pages.dev`).
+4. ✅ Moved `staging.busseyandbussey.com`: detached from the old
+   `bussey-bussey-web-staging` project, attached to `bussey-bussey-staging`;
+   cert went **Active**.
+5. ✅ Re-ran §6.4 on the real hostname — all green INCLUDING `/api/*`
+   (`/api/chat/session` → 201). The worker's zone-level routes survived the
+   Pages-project swap, as expected: routes are independent of which Pages
+   project owns the hostname. The old `bussey-bussey-web-staging` project is
+   now **vestigial** (no domain, no longer deployed to); keep-or-delete is
+   logged in `notes/deferred-cleanup.md`.
+6. ✅ **Wrangler fallback** retargeted to the new project:
+   `wrangler pages deploy dist --project-name bussey-bussey-staging`
+   (was `…-web-staging`).
 
-The clean-200 alternative (serve the front end from a Worker with a
-static-assets binding, eliminating the 404-status on deep links) is logged
-in `notes/deferred-cleanup.md` and pairs naturally with this restructure.
+The clean-200 alternative (Option B — serve the front end from a Worker
+with a static-assets binding, eliminating the 404-status on deep links) is
+logged in `notes/deferred-cleanup.md`. It is **orthogonal to git-connect**:
+git-connect changed only the deploy *trigger* and kept the Pages serving
+model, so Option B remains a separate, standalone post-v1 reshape.
 
 ---
 

@@ -11,12 +11,12 @@ Each entry: what, why deferred, when to revisit. New entries go at the top
 - *Before first real client signs anything:* [Contract template requires lawyer review](#contract-template-requires-lawyer-review-before-real-client-signing) · [Stripe dev-placeholder mode for setup-payment](#stripe-dev-placeholder-mode-for-setup-payment)
 - *Before first production traffic:* [CORS on `/api/chat/*` is wide-open](#cors-on-apichat-is-wide-open) · [Session row cleanup (D1)](#session-row-cleanup-d1)
 - *Triggered by a second admin user:* [Owner-picker UX deferred until multi-admin](#owner-picker-ux-deferred-until-multi-admin) · [`/api/admin/auth/change-password` does not exist](#apiadminauthchange-password-does-not-exist)
-- *Triggered by feature need:* [Admin/portal SPA deep-links return HTTP 404 status](#adminportal-spa-deep-links-return-http-404-status-pages-subdirectory-spa-limitation) · [Bootstrap admin script — residual polish](#bootstrap-admin-script--residual-polish-mostly-resolved-in-m6) · [Front-ends share one Pages deploy (path-based topology)](#front-end-surfaces-share-one-pages-deploy-path-based-topology) · [Optional `/p/:token/demo/` spec-prefix rewrite](#production-routing-for-ptokendemo) · [ADMIN_NOTIFY_EMAILS back to PUBLIC once business email exists](#admin_notify_emails-is-temporarily-a-secret-move-back-to-public-once-business-email-exists) · [Notification preferences UI shipped but not yet enforced](#notification-preferences-ui-shipped-but-not-yet-enforced-in-send-logic) · [Signed-contract download is Markdown, not PDF](#signed-contract-download-is-markdown-not-pdf) · [`/api/portal/auth/change-password` is still stubbed](#apiportalauthchange-password-is-still-stubbed) · [Notes fields are single TEXT, spec asked for append-only](#notes-fields-are-single-text-spec-asked-for-append-only-with-timestamps) · [Margin/buffer indicators not implemented](#marginbuffer-indicators-not-implemented) · [Conversation context is the last 20 messages](#conversation-context-is-the-last-20-messages)
+- *Triggered by feature need:* [Delete the vestigial `bussey-bussey-web-staging` Pages project?](#delete-the-vestigial-bussey-bussey-web-staging-pages-project) · [Admin/portal SPA deep-links return HTTP 404 status](#adminportal-spa-deep-links-return-http-404-status-pages-subdirectory-spa-limitation) · [Bootstrap admin script — residual polish](#bootstrap-admin-script--residual-polish-mostly-resolved-in-m6) · [Front-ends share one Pages deploy (path-based topology)](#front-end-surfaces-share-one-pages-deploy-path-based-topology) · [Optional `/p/:token/demo/` spec-prefix rewrite](#production-routing-for-ptokendemo) · [ADMIN_NOTIFY_EMAILS back to PUBLIC once business email exists](#admin_notify_emails-is-temporarily-a-secret-move-back-to-public-once-business-email-exists) · [Notification preferences UI shipped but not yet enforced](#notification-preferences-ui-shipped-but-not-yet-enforced-in-send-logic) · [Signed-contract download is Markdown, not PDF](#signed-contract-download-is-markdown-not-pdf) · [`/api/portal/auth/change-password` is still stubbed](#apiportalauthchange-password-is-still-stubbed) · [Notes fields are single TEXT, spec asked for append-only](#notes-fields-are-single-text-spec-asked-for-append-only-with-timestamps) · [Margin/buffer indicators not implemented](#marginbuffer-indicators-not-implemented) · [Conversation context is the last 20 messages](#conversation-context-is-the-last-20-messages)
 - *Triggered by a future data shape:* [`updated_at` only on `proposal`](#updated_at-only-on-proposal-other-entities-still-missing-it) · [`setup_and_monthly` unit_type contributes to BOTH buckets](#setup_and_monthly-unit_type-contributes-to-both-buckets) · [Clone of accepted proposal copies opportunity name verbatim](#clone-of-accepted-proposal-copies-opportunity-name-verbatim) · [Stripe subscription status enum is a 3-bucket lossy projection](#stripe-subscription-status-enum-is-a-3-bucket-lossy-projection) · [`notification.kind` enum missing change_order_rejected + change_order_failed](#notificationkind-enum-is-missing-change_order_rejected--change_order_failed) · [Temp password plaintext cached in KV with 24h TTL](#temp-password-plaintext-cached-in-kv-with-24h-ttl) · [client.status flips to 'active' on acceptance](#clientstatus-flips-to-active-on-acceptance-not-a-separate-activating-state) · [Status state-machines server-permissive client-restrictive](#status-state-machines-are-server-permissive-client-restrictive) · [Proposal totals cache-and-update on the proposal row](#proposal-totals-cache-and-update-on-the-proposal-row) · [Presentation HTML inlines its own JS bundle](#presentation-html-inlines-its-own-10-kb-js-bundle) · [Calculator's custom-line-item prompt is `window.prompt()`](#calculators-custom-line-item-prompt-is-windowprompt) · [Chat system prompt lives in a `.ts` file, not a `.md`](#chat-system-prompt-lives-in-a-ts-file-not-a-md) · [Chat dev-mode stub when ANTHROPIC_API_KEY is placeholder](#chat-dev-mode-stub-when-anthropic_api_key-is-placeholder) · [Admin SPA framework decision (locked)](#admin-spa-framework-decision-locked) · [`@cloudflare/workers-types` version bump](#cloudflareworkers-types-version-bump)
 
 **By step in which the deferral was decided** (newest first):
 
-- *M.6 build:* [Admin/portal SPA deep-links return HTTP 404 status](#adminportal-spa-deep-links-return-http-404-status-pages-subdirectory-spa-limitation) · [Bootstrap admin script — remote/env support added, residual polish only](#bootstrap-admin-script--residual-polish-mostly-resolved-in-m6)
+- *M.6 build:* [Delete the vestigial `bussey-bussey-web-staging` Pages project?](#delete-the-vestigial-bussey-bussey-web-staging-pages-project) · [Admin/portal SPA deep-links return HTTP 404 status](#adminportal-spa-deep-links-return-http-404-status-pages-subdirectory-spa-limitation) · [Bootstrap admin script — remote/env support added, residual polish only](#bootstrap-admin-script--residual-polish-mostly-resolved-in-m6)
 - *M.4 build:* [Front-ends share one Pages deploy (path-based topology)](#front-end-surfaces-share-one-pages-deploy-path-based-topology) · [`/p/:token/demo/` spec-prefix rewrite reduced to optional](#production-routing-for-ptokendemo)
 - *M.3 build:* [ADMIN_NOTIFY_EMAILS back to PUBLIC once business email exists](#admin_notify_emails-is-temporarily-a-secret-move-back-to-public-once-business-email-exists)
 - *K2 build:* [Notification preferences UI shipped but not yet enforced](#notification-preferences-ui-shipped-but-not-yet-enforced-in-send-logic)
@@ -44,6 +44,34 @@ entry is retained in slimmed form rather than removed.)
 
 ---
 
+## Delete the vestigial `bussey-bussey-web-staging` Pages project?
+
+- **What (open question for the user):** The original staging front-end
+  Pages project `bussey-bussey-web-staging` (Direct Upload) was superseded
+  on 2026-05-24 by the git-connected project `bussey-bussey-staging`, which
+  now owns `staging.busseyandbussey.com`. The old project is **vestigial**:
+  no custom domain attached, never deployed to again, only its old
+  `*.pages.dev` deployments linger. Should it be **deleted now** or **left
+  dormant**?
+- **Recommendation (not yet acted on — user decides):** **Delete it, but
+  not urgently.** Leave it dormant just long enough to confirm the
+  git-connected path is solid (≥1 real push-triggered staging deploy
+  verified green), then delete to remove the **name-collision footgun** —
+  `bussey-bussey-web-staging` vs `bussey-bussey-staging` differ by one
+  token, and a stale `wrangler pages deploy --project-name
+  bussey-bussey-web-staging` out of muscle memory would publish to a dead
+  project and silently no-op the real staging. Dormant is otherwise
+  harmless (Pages projects are free at rest, no domain attached), so there's
+  no cost pressure — the only reason to keep it briefly is as a familiar
+  reference while setting up the production git-connect by the same pattern.
+- **When to revisit:** user's call; no functional trigger. Cleanest after
+  production is also cut over to git-connect (same procedure), so both
+  projects' old Direct-Upload twins can be retired together.
+- **How:** Cloudflare dashboard → Pages → `bussey-bussey-web-staging` →
+  Settings → Delete (or `wrangler pages project delete bussey-bussey-web-staging`).
+  Confirm first that NO custom domain is still attached to it.
+- **Decided in:** M.6 (staging git-connect cutover, 2026-05-24).
+
 ## Admin/portal SPA deep-links return HTTP 404 status (Pages subdirectory-SPA limitation)
 
 - **What:** A hard-loaded admin/portal deep link (e.g.
@@ -70,11 +98,16 @@ entry is retained in slimmed form rather than removed.)
   configured per path prefix, which can return a clean **200** with the
   right shell for each sub-app. That changes the front-end serving model
   (front end stops being a Pages project).
-- **When to revisit:** post-v1. **Pairs naturally with the git-connected
-  auto-deploy work** — git-connect already forces creating a new Pages
-  project (Direct Upload can't be converted to Git), and Option B reshapes
-  the deploy model anyway, so evaluate both together and restructure the
-  front-end deploy only once.
+- **When to revisit:** post-v1. **Now ORTHOGONAL to git-connect (done
+  2026-05-24).** The earlier plan was to pair Option B with the
+  git-connect restructure; in the event git-connect changed only the deploy
+  *trigger* (push-to-`main` auto-build) and KEPT the Pages serving model, so
+  the 404-status behavior is unchanged and Option B is still a separate,
+  standalone reshape (front end stops being a Pages project, becomes a
+  Worker with a static-assets binding). Doing it later means re-pointing
+  `staging.busseyandbussey.com` (and prod) off Pages onto the worker — a
+  domain re-attach, not a code-only change. No longer gated on or bundled
+  with the git-connect work.
 - **Decided in:** M.6 (staging deploy, 2026-05-24).
 
 ## Front-end surfaces share one Pages deploy (path-based topology)
