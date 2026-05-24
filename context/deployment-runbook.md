@@ -879,13 +879,23 @@ dist/
 
 1. **Pre-deploy checks** (§6.1) — green.
 2. **Build + assemble** with staging env values (§6.2) → `dist/`.
-3. **Deploy the merged Pages project:**
+3. **Deploy the merged Pages project.** `wrangler` is installed **only in
+   `worker/`** (no root binary), and `wrangler pages deploy` must run from a
+   directory with **no Workers `wrangler.toml`** (repo root qualifies; do
+   NOT run it from `worker/`, whose toml is a Workers config). Run from repo
+   root via the worker's binary, pre-creating the project so the run is
+   non-interactive:
    ```bash
-   pnpm exec wrangler pages deploy dist --project-name bussey-bussey-web-staging
+   # one-time: create the project, production branch = main (non-interactive)
+   ./worker/node_modules/.bin/wrangler pages project create bussey-bussey-web-staging --production-branch main
+   # deploy dist as the production deployment of that project
+   ./worker/node_modules/.bin/wrangler pages deploy dist --project-name bussey-bussey-web-staging --branch main
    ```
-   (First run creates the project. This prints a `*.pages.dev` preview URL —
-   fine for a first smoke, but the same-origin `/api` model only works on
-   the real hostname, so attach the custom domain next.)
+   (Skipping the pre-create makes `pages deploy` prompt to create the
+   project + for a production-branch name — answer create=yes, branch=`main`.
+   This prints a `*.pages.dev` URL — fine for a first smoke, but the
+   same-origin `/api` model only works on the real hostname, so attach the
+   custom domain next.)
 4. **Attach the staging custom domain** (dashboard, per §4.3): Pages → the
    project → Custom domains → add `staging.busseyandbussey.com`. This
    auto-creates the proxied `staging` DNS record and provisions TLS. Wait
@@ -989,6 +999,30 @@ Same five steps as 6.3 with production values (`busseyandbussey.com`,
 `bussey-bussey-web-production`, `wrangler deploy --env production`,
 attach the **apex** + `www` custom domains per §4.3). **Do not run until
 ALL of these hold:**
+
+> **REBUILD BEFORE ASSEMBLE — non-negotiable (learned the hard way in the
+> M.6 staging deploy, 2026-05-24).** The §6.2 assemble step (`cp` of the
+> three front-end build outputs into `dist/`) must ALWAYS be preceded by a
+> **fresh build of all three front ends with THIS environment's values**.
+> Build-time env vars (`BUSSEY_API_BASE` for site, `VITE_API_URL_BASE` for
+> admin) are baked into the bundle at build time — a leftover build dir
+> from `pnpm -r build` or from a *different* environment will copy the
+> WRONG (or `localhost:8787`-fallback) values into `dist/` silently, and
+> the structure-only verification will still pass. For production, rebuild
+> with the production values **immediately before** assembling:
+> ```bash
+> BUSSEY_API_BASE="https://busseyandbussey.com"  pnpm --filter @bussey/site  build
+> VITE_API_URL_BASE="https://busseyandbussey.com" pnpm --filter @bussey/admin build
+> pnpm --filter @bussey/portal build
+> # then the §6.2 rm -rf dist && cp ... assemble
+> ```
+> Then VERIFY the bake before deploying: `grep -rl "busseyandbussey.com"
+> dist/admin/_app/` must hit (admin "Preview presentation" URL), and the
+> `dist/index.html` chat config must read `apiBase: "https://busseyandbussey.com"`
+> — NOT `localhost:8787`. (Staging caught this: a var-less admin build was
+> copied into `dist/admin`, leaving the preview button pointed at
+> localhost; it passed structure checks and was only caught by an explicit
+> value-grep.)
 
 - [ ] **All production worker secrets installed** (`§3`) — currently
       deferred: `ANTHROPIC_API_KEY` (prod key), `STRIPE_SECRET_KEY`
