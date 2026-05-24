@@ -13,8 +13,9 @@ _Describe what this project is for. The manager will update this section as unde
 review after each. Sister doc `context/deployment-runbook.md` is being
 built up section by section as each subtask completes. M.1–M.4 done
 (topology approved, zone Active, routes live); M.5 documented (user-side
-dashboard + secret install pending). Next: M.6 (deploy) — ON HOLD pending
-user review of the deploy plan.
+dashboard + secret install pending); M.6 deploy PLAN written (§6 + §10) —
+NOT executed, awaiting user review + a discrete go-ahead for the staging
+deploy.
 
 **M.1 done and reviewed.** `[env.staging]` and `[env.production]`
 blocks added to `worker/wrangler.toml` with `REPLACE_WITH_*` ID
@@ -97,6 +98,24 @@ installed now, but staging *delivery testing* is gated behind the M.6
 staging deploy + the staging Pages custom-domain attach (the
 `staging.busseyandbussey.com` hostname doesn't exist until then).
 Dashboard config + secret install are M-human (needs the Stripe account).
+
+**M.6 deploy PLAN written (not executed).** Runbook §6 is a staging-first
+plan; §10 is per-surface rollback. Verified locally (build ≠ deploy):
+all three front ends build clean, and `adapter-static` output assembles
+into one merged Pages dir — `site/_site/*` → root, `admin/build/*` →
+`/admin/`, `portal/build/*` → `/portal/` (SPA asset URLs are prefixed
+`/admin`,`/portal`, so they line up when served at those paths). Plan
+covers: pre-deploy checks, build-time env vars (same-origin), the merge +
+a `dist/_redirects` for sub-path SPA deep-link fallback (flagged as the
+one Pages-serving behavior to verify on the staging deploy), the staging
+deploy order (Pages deploy → attach `staging.busseyandbussey.com` → worker
+`deploy --env staging` binds the routes for real → seed admin → verify →
+webhook test), and the gated production mirror. **Open decision (§6.6):**
+`seed-bootstrap-admin.mjs` is `--local`-only, so it can't seed the
+staging/prod admin needed for the `/admin` login check — needs either a
+one-off remote `d1 execute` insert or a `--remote` extension of the
+script (deferred-cleanup entry escalated to M.6-blocking). Nothing
+deployed; holding for review + go-ahead.
 
 **v1 build structurally complete.** Step L (calling list) built and
 smoke-tested green; scope in `context/step-L-scope.md`, results in

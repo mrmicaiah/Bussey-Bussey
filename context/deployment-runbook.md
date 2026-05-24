@@ -25,8 +25,11 @@ Sections are organized by the workflow's natural order:
 > dry-run-validated for both envs. M.5 (Stripe webhooks) documented below
 > — the dashboard config + secret install are user-side (needs the Stripe
 > account); staging delivery testing is gated behind the M.6 staging
-> deploy. Sections 6 onward are skeleton headings (M.6 → M.10). **M.6
-> deploy is on hold pending user review of the deploy plan.**
+> deploy. **M.6 §6 + §10 are now written as a PLAN (staging-first, with
+> production gated and per-surface rollback) — nothing has been deployed;
+> awaiting user review + a discrete go-ahead for the staging deploy.** One
+> open decision inside the plan: the bootstrap-admin seed is `--local`-only
+> (§6.6). Sections 7–9 remain skeletons (M.7 → M.9).
 
 ---
 
@@ -762,19 +765,237 @@ Production delivery is verified as part of the M.10 production smoke test
 
 ---
 
-## 6. Deployment commands (M.6)
+## 6. Deployment commands (M.6) — PLAN (not yet executed)
 
-_To be filled in by M.6._
+> **Status: PLAN for review. Nothing here has been run.** No live
+> `wrangler deploy` / `wrangler pages deploy` has happened. The order is
+> **staging first** (prove the pipeline end-to-end), then production
+> (mirror, but gated — §6.7). Build commands below *have* been run
+> locally to confirm output structure (a build is not a deploy); the
+> deploy commands have not.
 
-Outline:
+### 6.0 Surfaces and naming
 
-- Worker: `wrangler deploy --env production`
-- Admin (SvelteKit static): `pnpm --filter @bussey/admin build` →
-  `wrangler pages deploy` (or equivalent)
-- Portal: same pattern
-- Site (Eleventy): build + Pages deploy
-- Pre-deploy checks (typecheck, build) per surface
-- Rollback procedure per surface
+| Surface | What | Deploy unit | Name |
+|---------|------|-------------|------|
+| Worker (API) | chat + admin + portal + Stripe webhook + `/p/:token` | `wrangler deploy --env <env>` | `bussey-bussey-api-staging` / `-production` (already set in `wrangler.toml`) |
+| Front end | **one merged Pages project** = site (`/`) + admin (`/admin/`) + portal (`/portal/`) | `wrangler pages deploy <dir>` | proposed: `bussey-bussey-web-staging` / `bussey-bussey-web-production` |
+
+The merged Pages project is the M.4 consequence (Pages binds a whole
+hostname to one project — see §4.0 and the deferred-cleanup entry). The
+three front-end builds assemble into one directory and deploy together.
+
+### 6.1 Pre-deploy checks (from repo root)
+
+```bash
+pnpm -r typecheck      # worker: tsc --noEmit; admin/portal: svelte-check; site: no-op
+pnpm -r build          # all three front ends + worker dry-run bundle must succeed
+```
+
+Both must be clean before deploying. (`pnpm -r lint` is currently a
+stub on every package — not a gate yet.) The worker's own `build`
+script is `wrangler deploy --dry-run --outdir=dist`, so `pnpm -r build`
+also re-validates the worker bundle.
+
+### 6.2 Build the front ends + assemble the merged deploy directory
+
+**Build-time env vars** (path-based ⇒ same-origin; §4.7, `env-vars.md`):
+
+| Var | Surface | Staging value | Production value |
+|-----|---------|---------------|------------------|
+| `VITE_API_URL_BASE` | admin | `https://staging.busseyandbussey.com` | `https://busseyandbussey.com` |
+| `BUSSEY_API_BASE` | site | `https://staging.busseyandbussey.com` | `https://busseyandbussey.com` |
+| (none) | portal | — | — |
+
+> The SPAs' general data-fetching is **relative-path** and needs no base
+> var; `VITE_API_URL_BASE` only feeds admin's "Preview presentation"
+> button (`/p/:token`), and `BUSSEY_API_BASE` only the site chat widget.
+
+**Build (staging values shown):**
+
+```bash
+# from repo root
+BUSSEY_API_BASE="https://staging.busseyandbussey.com" pnpm --filter @bussey/site  build   # -> site/_site/
+VITE_API_URL_BASE="https://staging.busseyandbussey.com" pnpm --filter @bussey/admin build  # -> admin/build/
+pnpm --filter @bussey/portal build                                                          # -> portal/build/
+```
+
+**Confirmed output structure** (verified by building 2026-05-23):
+
+```
+site/_site/     index.html, about/, services/, industries/, blog/,
+                articles/, case-studies/, assets/, demos/, feed.xml, sitemap.xml
+admin/build/    index.html + _app/        (assets referenced as /admin/_app/…)
+portal/build/   index.html + _app/        (assets referenced as /portal/_app/…)
+```
+
+`adapter-static` does **not** nest output under the base path — the files
+sit at `build/` root and the in-HTML asset URLs are prefixed `/admin`
+(resp. `/portal`). So serving `admin/build/*` **at** `/admin/` makes the
+URLs line up. The site's `demos/` is the repo-root `demos/` dir passed
+through by Eleventy (`site/.eleventy.js`), which is how `/demos/:token/`
+is served same-origin (§4.5).
+
+**Assemble into one deploy dir** (`dist/` is gitignored):
+
+```bash
+# from repo root
+rm -rf dist && cp -R site/_site dist
+mkdir -p dist/admin dist/portal
+cp -R admin/build/.  dist/admin/
+cp -R portal/build/. dist/portal/
+# SPA deep-link fallback for the two sub-path apps (see note below):
+printf '/admin/*  /admin/index.html  200\n/portal/* /portal/index.html 200\n' > dist/_redirects
+```
+
+Result:
+
+```
+dist/
+├── index.html, about/, …, assets/, demos/   (site, served at /)
+├── _redirects                                (SPA fallback rules)
+├── admin/   index.html + _app/               (served at /admin/*)
+└── portal/  index.html + _app/               (served at /portal/*)
+```
+
+> **Why `_redirects` — and the one thing to VERIFY on the staging deploy.**
+> Both SPAs build in fallback (`index.html`) SPA mode, so a deep link like
+> `/admin/clients/123` has no prerendered file. Cloudflare Pages serves an
+> existing static asset first; a path with **no** matching file falls
+> back. But because the merged project has a top-level `index.html` (the
+> site) and no top-level `404.html`, Pages' default would fall *all*
+> misses back to the **site** root — wrong for the SPAs. The two scoped
+> `_redirects` rules send `/admin/*` and `/portal/*` misses to the correct
+> shell instead. Existing asset files (`/admin/_app/…`) are served as
+> themselves (assets take precedence in normal routing). **Verify on the
+> staging deploy (§6.4): (a) `/admin/_app/*.js` returns JavaScript, not
+> HTML, and (b) hard-reloading a deep link like `/admin/leads` serves the
+> admin shell, not the site homepage or a 404.** If assets are clobbered,
+> the fallback fix is to drop a top-level `dist/404.html` and/or narrow
+> the rules — but the scoped rules above are the expected-correct form.
+
+### 6.3 STAGING deploy — execution order
+
+1. **Pre-deploy checks** (§6.1) — green.
+2. **Build + assemble** with staging env values (§6.2) → `dist/`.
+3. **Deploy the merged Pages project:**
+   ```bash
+   pnpm exec wrangler pages deploy dist --project-name bussey-bussey-web-staging
+   ```
+   (First run creates the project. This prints a `*.pages.dev` preview URL —
+   fine for a first smoke, but the same-origin `/api` model only works on
+   the real hostname, so attach the custom domain next.)
+4. **Attach the staging custom domain** (dashboard, per §4.3): Pages → the
+   project → Custom domains → add `staging.busseyandbussey.com`. This
+   auto-creates the proxied `staging` DNS record and provisions TLS. Wait
+   for the cert to go **Active**.
+5. **Deploy the worker to staging** — this is what binds the routes for
+   real (the step `--dry-run` could not verify):
+   ```bash
+   cd worker && pnpm exec wrangler deploy --env staging
+   ```
+   Confirm the output lists the two routes
+   (`staging.busseyandbussey.com/api/*`, `…/p/*`) as published.
+6. **Seed the staging bootstrap admin** — required for the `/admin` login
+   check, and currently a GAP: see §6.6 before running anything.
+
+### 6.4 Post-staging-deploy verification checklist
+
+Run after steps 6.3.1–6.3.5 (and 6.3.6 for the login item):
+
+- [ ] `https://staging.busseyandbussey.com/` loads the **site**.
+- [ ] `https://staging.busseyandbussey.com/admin/` loads the **admin SPA**;
+      `/admin/_app/*.js` returns JavaScript (not HTML — the `_redirects`
+      asset check); a hard-reloaded deep link (e.g. `/admin/leads`) serves
+      the admin shell.
+- [ ] Admin **login works** against the staging worker (needs the §6.6
+      bootstrap admin) — a successful login sets the `bb_admin_session`
+      cookie host-only on `staging.busseyandbussey.com` and authenticated
+      `/api/admin/*` calls succeed (proves the same-origin relative-`/api`
+      model end-to-end).
+- [ ] `https://staging.busseyandbussey.com/portal/` loads the **portal SPA**.
+- [ ] `/api/*` **reaches the worker** — test an unauthenticated endpoint,
+      e.g. create a chat session:
+      ```bash
+      curl -s -X POST https://staging.busseyandbussey.com/api/chat/session
+      # expect a JSON session payload from the worker, not a Pages 404
+      ```
+- [ ] `/p/:token` serves a presentation. **Seed data required:** there is
+      no staging opportunity yet. After admin login (above), create a test
+      client → opportunity → proposal through the admin UI to mint a
+      `presentation_token`, then open
+      `https://staging.busseyandbussey.com/p/<token>` and confirm the
+      worker-rendered page + the same-origin `/demos/<token>/` iframe.
+      (This overlaps the M.7 smoke-test harness; a throwaway opportunity is
+      enough here.)
+- [ ] **TLS** is clean (Full (strict)) on the apex/staging host — no cert
+      warnings; `curl -sI https://staging.busseyandbussey.com/ | grep -i ^HTTP`
+      is `200`.
+
+### 6.5 Staging webhook delivery test
+
+This is the §5.6 gated item, now unblocked by 6.3. Create the Stripe
+**Test-mode** endpoint (`§5.2`), install `STRIPE_WEBHOOK_SECRET --env
+staging` (`§5.4`), then Stripe dashboard → endpoint → **Send test event**
+→ expect **200**. Tail with `pnpm exec wrangler tail --env staging` while
+testing.
+
+### 6.6 Bootstrap admin on staging/production — GAP to resolve first
+
+`worker/scripts/seed-bootstrap-admin.mjs` is **`--local`-only**: it
+hardcodes `wrangler d1 execute bussey-bussey --local` (the dev DB) and
+has no `--remote` / `--env` support. Its own header flags this as a v1
+limitation, and `notes/deferred-cleanup.md` tracks it
+("v1 bootstrap admin script — replace before second admin"). This is the
+M.2-deferred "production bootstrap admin" step now coming due. **It needs
+a decision before 6.3.6.** Two options:
+
+- **(a) One-off remote insert (no code change).** Generate a bcrypt hash
+  + UUID locally, then run a single `wrangler d1 execute
+  bussey-bussey-staging --env staging --remote --file=<insert.sql>` with
+  the same column shape the script uses (`id, name, email, password_hash,
+  role='owner', active=1`). Repeat for production later with a fresh
+  password. Pros: nothing to build. Cons: manual, easy to fumble the hash.
+- **(b) Extend the seed script** to accept `--remote` + a DB-name/env
+  (resolving the deferred-cleanup item now). Pros: repeatable, prints the
+  password safely as today. Cons: a small code change to land + review
+  first.
+
+Recommendation: **(b)** if we want a clean repeatable path for both
+staging and production; **(a)** if you just want staging unblocked today.
+Either way, the email/role are the platform owner's
+(`mrmicaiah@gmail.com`, `owner`). Flag your choice and I'll implement it
+as a discrete step.
+
+### 6.7 PRODUCTION deploy — mirror of staging, GATED
+
+Same five steps as 6.3 with production values (`busseyandbussey.com`,
+`bussey-bussey-web-production`, `wrangler deploy --env production`,
+attach the **apex** + `www` custom domains per §4.3). **Do not run until
+ALL of these hold:**
+
+- [ ] **All production worker secrets installed** (`§3`) — currently
+      deferred: `ANTHROPIC_API_KEY` (prod key), `STRIPE_SECRET_KEY`
+      (`sk_live_…`), `RESEND_API_KEY` (verified `busseyandbussey.com`
+      sending domain), `SESSION_SECRET` (fresh), `ADMIN_NOTIFY_EMAILS`,
+      and `STRIPE_WEBHOOK_SECRET` (from the prod webhook, §5.5).
+- [ ] **Stripe business activation complete** (enables live mode + the
+      `sk_live_…` / `pk_live_…` keys + the Live-mode webhook endpoint).
+- [ ] **Real `pk_live_…`** pasted into `wrangler.toml`
+      `[env.production.vars] STRIPE_PUBLISHABLE_KEY` (replacing the
+      `pk_live_REPLACE_…` placeholder).
+- [ ] **Production bootstrap admin** seeded (§6.6, with a fresh distinct
+      password).
+- [ ] **Staging fully verified** (§6.4 + §6.5 all green).
+- [ ] **Your explicit go-ahead.**
+
+Production delivery + full chain are verified by the M.10 smoke test
+(§7), not by the deploy itself.
+
+### 6.8 Rollback — see §10
+
+Rollback procedure for each surface is in **§10** (filled in as part of
+this subtask).
 
 ---
 
@@ -819,12 +1040,72 @@ Outline:
 
 ---
 
-## 10. Rollback procedures
+## 10. Rollback procedures (M.6)
 
-_To be filled in by M.6._
+Each surface rolls back independently. **Code/asset rollbacks are fast
+and safe; data (D1) is forward-only.** Always practice a rollback on
+staging before you need one on production.
 
-Outline per surface:
+### Worker
 
-- Worker: `wrangler rollback` or redeploy previous git SHA
-- Admin / Portal: redeploy previous build via Pages
-- D1: forward-only; reverting a migration requires a counter-migration
+Cloudflare retains prior Worker deployments. To revert the code:
+
+```bash
+cd worker
+pnpm exec wrangler deployments list --env <env>      # find the prior good deployment ID
+pnpm exec wrangler rollback [<deployment-id>] --env <env>
+```
+
+`rollback` re-points the live Worker at a previous **uploaded version**
+(code + the bindings/vars/routes that shipped with it). It does **not**
+undo a D1 migration and does **not** restore a deleted secret. If the bad
+change was a secret/var (not code), fix that directly (`wrangler secret
+put` / edit `wrangler.toml` + redeploy) rather than rolling back.
+Alternative (git-based): `git checkout <good-sha> -- worker && cd worker
+&& pnpm exec wrangler deploy --env <env>`.
+
+### Front end (merged Pages project — site + admin + portal)
+
+Because the three front ends share one Pages project (§6.0), they roll
+back **together** as one unit:
+
+- **Dashboard (fastest):** Pages → the project → **Deployments** → pick
+  the previous successful deployment → **Rollback to this deployment**.
+  Instant, no rebuild.
+- **Re-deploy a known-good build:** rebuild from a good git SHA and
+  `pnpm exec wrangler pages deploy dist --project-name <name>` again.
+
+There is no per-surface (admin-only / site-only) front-end rollback under
+this layout — that tradeoff is the deferred-cleanup "one Pages deploy"
+entry. Custom-domain attachment is independent of deployments, so a
+rollback does not detach `staging.busseyandbussey.com` / the apex.
+
+### D1 (database) — forward-only
+
+Migrations are **not** reversible by rollback. To undo a schema change,
+write a **counter-migration** forward (the §2 discipline). For bad *data*
+(e.g. a botched bulk write), use D1 **Time Travel** point-in-time restore
+(see §9 once filled in):
+
+```bash
+pnpm exec wrangler d1 time-travel restore <db-name> --env <env> --timestamp <ISO8601>
+```
+
+within the retention window. Treat this as a break-glass action — it
+restores the whole database to that instant, losing writes since.
+
+### R2 / KV
+
+- **R2** (`FILES`): objects are addressed by key; a bad regenerated PDF is
+  fixed by re-`put`-ting the correct object (or restoring from a copy).
+  No deploy-level rollback concept.
+- **KV** (`SESSIONS`): ephemeral by design (session/token mirror). Nothing
+  to roll back; at worst, clearing it forces re-login.
+
+### Order when rolling back a coupled change
+
+If a bad release spanned worker + front end, roll back the **front end
+first** (instant, removes the broken UI), then the worker. If a D1
+migration is implicated, do **not** deploy further — assess whether a
+counter-migration or Time Travel restore is needed before re-deploying
+anything.

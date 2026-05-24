@@ -381,8 +381,8 @@ entries are removed from this file.)
   - No audit_log row written for the bootstrap event.
   - Email/name are constants in the source file; changing requires editing the script.
   - Idempotent on the email column only (re-running with a different email creates a *second* admin without warning).
-- **Trigger to revisit:** before we need to add a second admin user (real teammate, prod owner, recovery account, etc.). Once the proper CLI exists, delete this script.
-- **Decided:** during step D scoping.
+- **Trigger to revisit:** NOW DUE in M.6. The staging (and later production) deploy needs an admin user on the *remote* D1 to verify `/admin` login, but this script is `--local`-only — it cannot seed staging/prod. Runbook §6.6 lays out the two unblock options: (a) a one-off `wrangler d1 execute <db> --env <env> --remote` insert with a locally-computed bcrypt hash, or (b) extend this script with `--remote` + env/db-name support (which also resolves this entry). The original "before a second admin" trigger still stands beyond that. Once the proper CLI exists, delete this script.
+- **Decided:** during step D scoping. Escalated to M.6-blocking during the M.6 deploy-plan write-up.
 
 ## Session row cleanup (D1)
 
