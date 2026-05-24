@@ -848,11 +848,20 @@ is served same-origin (§4.5).
 
 ```bash
 # from repo root
-rm -rf dist && cp -R site/_site dist
+rm -rf dist && cp -R site/_site dist     # carries dist/404.html (the site 404)
 mkdir -p dist/admin dist/portal
 cp -R admin/build/.  dist/admin/
 cp -R portal/build/. dist/portal/
-# SPA deep-link fallback for the two sub-path apps (see note below):
+# Sub-path SPA deep-link fallback. Pages does NOT honor sub-path _redirects
+# 200-proxy (root-only miss handling — see note below), so we use Pages'
+# documented "nearest 404.html" lookup: make each SPA shell its subtree's
+# 404.html. A miss under /admin/* then serves the admin shell; under
+# /portal/* the portal shell; everything else the site 404 (dist/404.html).
+cp dist/admin/index.html  dist/admin/404.html
+cp dist/portal/index.html dist/portal/404.html
+# _redirects kept for forward-compat: inert for sub-paths on Pages today, but
+# would auto-upgrade these deep links from 404-status to a clean 200 if Pages
+# ever honors sub-path proxy (redirects out-rank 404 handling when they fire).
 printf '/admin/*  /admin/index.html  200\n/portal/* /portal/index.html 200\n' > dist/_redirects
 ```
 
@@ -938,13 +947,22 @@ dist/
 Run after steps 6.3.1–6.3.5 (and 6.3.6 for the login item):
 
 - [ ] `https://staging.busseyandbussey.com/` loads the **site**.
-- [ ] `https://staging.busseyandbussey.com/admin/` loads the **admin SPA**;
-      `/admin/_app/*.js` returns JavaScript (not HTML — the `_redirects`
-      asset check); a hard-reloaded deep link (e.g. `/admin/leads` AND a
-      nested `/admin/leads/<id>`) serves the admin shell (`<title>Bussey ·
-      Admin`), **not** the site homepage. Same for a portal deep link
-      (`/portal/billing/<id>` → `Bussey · Client Portal`). (This is the
-      2026-05-24 deep-link regression — see the §6.2 note.)
+- [ ] `https://staging.busseyandbussey.com/admin/` loads the **admin SPA**
+      with a **200** (real asset); `/admin/_app/*.js` returns JavaScript
+      (not HTML).
+- [ ] **Sub-path SPA deep links** (`/admin/leads`, nested `/admin/leads/<id>`,
+      and `/portal/billing/<id>`) serve the **correct shell BODY** — admin
+      deep links → `<title>Bussey · Admin`, portal → `<title>Bussey · Client
+      Portal`. **The HTTP STATUS will be 404, and that is expected and
+      correct** (Pages serves the subtree's `404.html`, which we made the SPA
+      shell — see §6.2; sub-path 200-rewrites are unsupported on Pages). Pass
+      criterion = **body title is the right shell**, NOT status 200. The SPA
+      hydrates and client-routes normally; `/api` fetches are unaffected.
+      Verify the body, e.g.:
+      ```bash
+      curl -s https://staging.busseyandbussey.com/admin/leads | grep -o '<title>[^<]*'
+      # expect: <title>Bussey · Admin   (curl -I will show 404 — fine)
+      ```
 - [ ] **Deep-link fallback discriminator:** a genuine miss returns a real
       404, not the homepage:
       ```bash

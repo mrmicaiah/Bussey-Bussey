@@ -11,12 +11,12 @@ Each entry: what, why deferred, when to revisit. New entries go at the top
 - *Before first real client signs anything:* [Contract template requires lawyer review](#contract-template-requires-lawyer-review-before-real-client-signing) · [Stripe dev-placeholder mode for setup-payment](#stripe-dev-placeholder-mode-for-setup-payment)
 - *Before first production traffic:* [CORS on `/api/chat/*` is wide-open](#cors-on-apichat-is-wide-open) · [Session row cleanup (D1)](#session-row-cleanup-d1)
 - *Triggered by a second admin user:* [Owner-picker UX deferred until multi-admin](#owner-picker-ux-deferred-until-multi-admin) · [`/api/admin/auth/change-password` does not exist](#apiadminauthchange-password-does-not-exist)
-- *Triggered by feature need:* [Bootstrap admin script — residual polish](#bootstrap-admin-script--residual-polish-mostly-resolved-in-m6) · [Front-ends share one Pages deploy (path-based topology)](#front-end-surfaces-share-one-pages-deploy-path-based-topology) · [Optional `/p/:token/demo/` spec-prefix rewrite](#production-routing-for-ptokendemo) · [ADMIN_NOTIFY_EMAILS back to PUBLIC once business email exists](#admin_notify_emails-is-temporarily-a-secret-move-back-to-public-once-business-email-exists) · [Notification preferences UI shipped but not yet enforced](#notification-preferences-ui-shipped-but-not-yet-enforced-in-send-logic) · [Signed-contract download is Markdown, not PDF](#signed-contract-download-is-markdown-not-pdf) · [`/api/portal/auth/change-password` is still stubbed](#apiportalauthchange-password-is-still-stubbed) · [Notes fields are single TEXT, spec asked for append-only](#notes-fields-are-single-text-spec-asked-for-append-only-with-timestamps) · [Margin/buffer indicators not implemented](#marginbuffer-indicators-not-implemented) · [Conversation context is the last 20 messages](#conversation-context-is-the-last-20-messages)
+- *Triggered by feature need:* [Admin/portal SPA deep-links return HTTP 404 status](#adminportal-spa-deep-links-return-http-404-status-pages-subdirectory-spa-limitation) · [Bootstrap admin script — residual polish](#bootstrap-admin-script--residual-polish-mostly-resolved-in-m6) · [Front-ends share one Pages deploy (path-based topology)](#front-end-surfaces-share-one-pages-deploy-path-based-topology) · [Optional `/p/:token/demo/` spec-prefix rewrite](#production-routing-for-ptokendemo) · [ADMIN_NOTIFY_EMAILS back to PUBLIC once business email exists](#admin_notify_emails-is-temporarily-a-secret-move-back-to-public-once-business-email-exists) · [Notification preferences UI shipped but not yet enforced](#notification-preferences-ui-shipped-but-not-yet-enforced-in-send-logic) · [Signed-contract download is Markdown, not PDF](#signed-contract-download-is-markdown-not-pdf) · [`/api/portal/auth/change-password` is still stubbed](#apiportalauthchange-password-is-still-stubbed) · [Notes fields are single TEXT, spec asked for append-only](#notes-fields-are-single-text-spec-asked-for-append-only-with-timestamps) · [Margin/buffer indicators not implemented](#marginbuffer-indicators-not-implemented) · [Conversation context is the last 20 messages](#conversation-context-is-the-last-20-messages)
 - *Triggered by a future data shape:* [`updated_at` only on `proposal`](#updated_at-only-on-proposal-other-entities-still-missing-it) · [`setup_and_monthly` unit_type contributes to BOTH buckets](#setup_and_monthly-unit_type-contributes-to-both-buckets) · [Clone of accepted proposal copies opportunity name verbatim](#clone-of-accepted-proposal-copies-opportunity-name-verbatim) · [Stripe subscription status enum is a 3-bucket lossy projection](#stripe-subscription-status-enum-is-a-3-bucket-lossy-projection) · [`notification.kind` enum missing change_order_rejected + change_order_failed](#notificationkind-enum-is-missing-change_order_rejected--change_order_failed) · [Temp password plaintext cached in KV with 24h TTL](#temp-password-plaintext-cached-in-kv-with-24h-ttl) · [client.status flips to 'active' on acceptance](#clientstatus-flips-to-active-on-acceptance-not-a-separate-activating-state) · [Status state-machines server-permissive client-restrictive](#status-state-machines-are-server-permissive-client-restrictive) · [Proposal totals cache-and-update on the proposal row](#proposal-totals-cache-and-update-on-the-proposal-row) · [Presentation HTML inlines its own JS bundle](#presentation-html-inlines-its-own-10-kb-js-bundle) · [Calculator's custom-line-item prompt is `window.prompt()`](#calculators-custom-line-item-prompt-is-windowprompt) · [Chat system prompt lives in a `.ts` file, not a `.md`](#chat-system-prompt-lives-in-a-ts-file-not-a-md) · [Chat dev-mode stub when ANTHROPIC_API_KEY is placeholder](#chat-dev-mode-stub-when-anthropic_api_key-is-placeholder) · [Admin SPA framework decision (locked)](#admin-spa-framework-decision-locked) · [`@cloudflare/workers-types` version bump](#cloudflareworkers-types-version-bump)
 
 **By step in which the deferral was decided** (newest first):
 
-- *M.6 build:* [Bootstrap admin script — remote/env support added, residual polish only](#bootstrap-admin-script--residual-polish-mostly-resolved-in-m6)
+- *M.6 build:* [Admin/portal SPA deep-links return HTTP 404 status](#adminportal-spa-deep-links-return-http-404-status-pages-subdirectory-spa-limitation) · [Bootstrap admin script — remote/env support added, residual polish only](#bootstrap-admin-script--residual-polish-mostly-resolved-in-m6)
 - *M.4 build:* [Front-ends share one Pages deploy (path-based topology)](#front-end-surfaces-share-one-pages-deploy-path-based-topology) · [`/p/:token/demo/` spec-prefix rewrite reduced to optional](#production-routing-for-ptokendemo)
 - *M.3 build:* [ADMIN_NOTIFY_EMAILS back to PUBLIC once business email exists](#admin_notify_emails-is-temporarily-a-secret-move-back-to-public-once-business-email-exists)
 - *K2 build:* [Notification preferences UI shipped but not yet enforced](#notification-preferences-ui-shipped-but-not-yet-enforced-in-send-logic)
@@ -43,6 +43,39 @@ minor residual polish (no audit_log row; not an interactive CLI), so that
 entry is retained in slimmed form rather than removed.)
 
 ---
+
+## Admin/portal SPA deep-links return HTTP 404 status (Pages subdirectory-SPA limitation)
+
+- **What:** A hard-loaded admin/portal deep link (e.g.
+  `/admin/leads/<id>`, `/portal/billing/<id>`) serves the **correct SPA
+  shell body** but with an **HTTP 404 status**, not 200. Internal pages
+  only — the SPA hydrates and client-routes normally and `/api` calls are
+  unaffected, so it is functionally correct; the status code is the only
+  blemish. (Client-facing `/p/:token` presentations are unaffected — those
+  are worker-served on the `/p/*` route and return clean 200s.)
+- **Why (root cause, docs-grounded):** Cloudflare Pages only does
+  **root-level** unmatched-path handling. With a top-level `404.html`
+  present (which we need so true misses don't fall back to the site
+  homepage), Pages serves the **nearest `404.html`** for any miss. The
+  M.6 fix (Option A) makes each SPA shell its own subtree's `404.html`
+  (`dist/admin/404.html`, `dist/portal/404.html` = copies of the shells),
+  so `/admin/*` and `/portal/*` deep links resolve to the right shell —
+  but inherently at 404 status. Sub-path `_redirects` 200-rewrites
+  (`/admin/* /admin/index.html 200`) are **valid syntax but inert on
+  Pages** for subdirectories — a documented Pages limitation ("Pages is
+  optimized for SPAs at the root; subdirectory SPAs are not a supported
+  use case"). The inert rules are kept for forward-compat.
+- **Clean fix (Option B, deferred):** serve the merged front end from a
+  **Worker with a static-assets binding** and `not_found_handling`
+  configured per path prefix, which can return a clean **200** with the
+  right shell for each sub-app. That changes the front-end serving model
+  (front end stops being a Pages project).
+- **When to revisit:** post-v1. **Pairs naturally with the git-connected
+  auto-deploy work** — git-connect already forces creating a new Pages
+  project (Direct Upload can't be converted to Git), and Option B reshapes
+  the deploy model anyway, so evaluate both together and restructure the
+  front-end deploy only once.
+- **Decided in:** M.6 (staging deploy, 2026-05-24).
 
 ## Front-end surfaces share one Pages deploy (path-based topology)
 
