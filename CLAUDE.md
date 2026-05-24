@@ -110,12 +110,16 @@ a `dist/_redirects` for sub-path SPA deep-link fallback (flagged as the
 one Pages-serving behavior to verify on the staging deploy), the staging
 deploy order (Pages deploy → attach `staging.busseyandbussey.com` → worker
 `deploy --env staging` binds the routes for real → seed admin → verify →
-webhook test), and the gated production mirror. **Open decision (§6.6):**
-`seed-bootstrap-admin.mjs` is `--local`-only, so it can't seed the
-staging/prod admin needed for the `/admin` login check — needs either a
-one-off remote `d1 execute` insert or a `--remote` extension of the
-script (deferred-cleanup entry escalated to M.6-blocking). Nothing
-deployed; holding for review + go-ahead.
+webhook test), and the gated production mirror. **§6.6 bootstrap-admin gap RESOLVED (option
+b):** `seed-bootstrap-admin.mjs` extended to take `--env
+staging|production` (resolves the remote D1 name from `wrangler.toml`,
+runs `--remote`), `--name`/`--email` overrides, idempotent per env,
+bcrypt-12 (matches `worker/src/lib/password.ts`), prints the password
+once, plus a `--dry-run` inspect mode. Inspect-verified for staging /
+production / local on 2026-05-23; the real remote seed is step 6.3.6 of
+the staging sequence (user runs it to capture the password). Deferred-
+cleanup entry slimmed to residual polish (no audit_log row; not an
+interactive CLI). Nothing deployed; holding for review + go-ahead.
 
 **v1 build structurally complete.** Step L (calling list) built and
 smoke-tested green; scope in `context/step-L-scope.md`, results in

@@ -27,9 +27,10 @@ Sections are organized by the workflow's natural order:
 > account); staging delivery testing is gated behind the M.6 staging
 > deploy. **M.6 §6 + §10 are now written as a PLAN (staging-first, with
 > production gated and per-surface rollback) — nothing has been deployed;
-> awaiting user review + a discrete go-ahead for the staging deploy.** One
-> open decision inside the plan: the bootstrap-admin seed is `--local`-only
-> (§6.6). Sections 7–9 remain skeletons (M.7 → M.9).
+> awaiting user review + a discrete go-ahead for the staging deploy.** The
+> §6.6 bootstrap-admin gap is RESOLVED: `seed-bootstrap-admin.mjs` now
+> takes `--env staging|production` + `--remote` (inspect-verified, not yet
+> run for real). Sections 7–9 remain skeletons (M.7 → M.9).
 
 ---
 
@@ -897,7 +898,12 @@ dist/
    Confirm the output lists the two routes
    (`staging.busseyandbussey.com/api/*`, `…/p/*`) as published.
 6. **Seed the staging bootstrap admin** — required for the `/admin` login
-   check, and currently a GAP: see §6.6 before running anything.
+   check. Use the now-`--env`-aware seed script (§6.6):
+   ```bash
+   cd worker
+   node scripts/seed-bootstrap-admin.mjs --env staging --dry-run   # inspect
+   node scripts/seed-bootstrap-admin.mjs --env staging             # seed; capture the password
+   ```
 
 ### 6.4 Post-staging-deploy verification checklist
 
@@ -940,32 +946,42 @@ staging` (`§5.4`), then Stripe dashboard → endpoint → **Send test event**
 → expect **200**. Tail with `pnpm exec wrangler tail --env staging` while
 testing.
 
-### 6.6 Bootstrap admin on staging/production — GAP to resolve first
+### 6.6 Bootstrap admin on staging/production — RESOLVED (option b)
 
-`worker/scripts/seed-bootstrap-admin.mjs` is **`--local`-only**: it
-hardcodes `wrangler d1 execute bussey-bussey --local` (the dev DB) and
-has no `--remote` / `--env` support. Its own header flags this as a v1
-limitation, and `notes/deferred-cleanup.md` tracks it
-("v1 bootstrap admin script — replace before second admin"). This is the
-M.2-deferred "production bootstrap admin" step now coming due. **It needs
-a decision before 6.3.6.** Two options:
+`worker/scripts/seed-bootstrap-admin.mjs` was extended (decision: option
+b) to seed a **remote** admin, env-aware. It resolves the target D1's
+`database_name` from `wrangler.toml` per `--env`, generates a 24-char
+random password, bcrypt-hashes at 12 rounds (matches
+`worker/src/lib/password.ts`), inserts with a fresh UUID, prints the
+plaintext **exactly once** (never to a file/log), and is idempotent per
+environment (no-op + message if the email already exists; never rotates).
+With no `--env` it keeps the original local-dev behavior unchanged.
 
-- **(a) One-off remote insert (no code change).** Generate a bcrypt hash
-  + UUID locally, then run a single `wrangler d1 execute
-  bussey-bussey-staging --env staging --remote --file=<insert.sql>` with
-  the same column shape the script uses (`id, name, email, password_hash,
-  role='owner', active=1`). Repeat for production later with a fresh
-  password. Pros: nothing to build. Cons: manual, easy to fumble the hash.
-- **(b) Extend the seed script** to accept `--remote` + a DB-name/env
-  (resolving the deferred-cleanup item now). Pros: repeatable, prints the
-  password safely as today. Cons: a small code change to land + review
-  first.
+Run **from `worker/`**. Inspect first (no wrangler call, no password, no
+write), then seed for real:
 
-Recommendation: **(b)** if we want a clean repeatable path for both
-staging and production; **(a)** if you just want staging unblocked today.
-Either way, the email/role are the platform owner's
-(`mrmicaiah@gmail.com`, `owner`). Flag your choice and I'll implement it
-as a discrete step.
+```bash
+# Inspect the exact target + SQL it will run (safe, no side effects):
+node scripts/seed-bootstrap-admin.mjs --env staging --dry-run
+
+# Seed the staging admin for real — prints the password ONCE. Capture it.
+node scripts/seed-bootstrap-admin.mjs --env staging
+#   (equivalently: pnpm --filter @bussey/worker seed:bootstrap-admin -- --env staging)
+```
+
+Owner identity defaults to `Micaiah Bussey` / `mrmicaiah@gmail.com`, role
+`owner` (override with `--name` / `--email` if ever needed). The remote
+`wrangler d1 execute` runs against the database resolved from
+`wrangler.toml` (`bussey-bussey-staging` here). This is the M.2-deferred
+"production bootstrap admin" path; production uses the same command with
+`--env production` (§6.7), which will mint a **separate, fresh** password.
+
+> Inspect mode was verified for `--env staging`, `--env production`, and
+> local on 2026-05-23 — it resolves the correct DB name and prints the
+> `INSERT … (id, name, email, password_hash, role, active)` shape
+> (`created_at` is filled by the column DEFAULT; `last_login_at` NULL).
+> The real remote seed has **not** been run — it is step 6.3.6, which you
+> run during the staging deploy so you capture the password.
 
 ### 6.7 PRODUCTION deploy — mirror of staging, GATED
 

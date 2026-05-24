@@ -10,12 +10,13 @@ Each entry: what, why deferred, when to revisit. New entries go at the top
 
 - *Before first real client signs anything:* [Contract template requires lawyer review](#contract-template-requires-lawyer-review-before-real-client-signing) · [Stripe dev-placeholder mode for setup-payment](#stripe-dev-placeholder-mode-for-setup-payment)
 - *Before first production traffic:* [CORS on `/api/chat/*` is wide-open](#cors-on-apichat-is-wide-open) · [Session row cleanup (D1)](#session-row-cleanup-d1)
-- *Triggered by a second admin user:* [v1 bootstrap admin script — replace before second admin](#v1-bootstrap-admin-script--replace-before-second-admin) · [Owner-picker UX deferred until multi-admin](#owner-picker-ux-deferred-until-multi-admin) · [`/api/admin/auth/change-password` does not exist](#apiadminauthchange-password-does-not-exist)
-- *Triggered by feature need:* [Front-ends share one Pages deploy (path-based topology)](#front-end-surfaces-share-one-pages-deploy-path-based-topology) · [Optional `/p/:token/demo/` spec-prefix rewrite](#production-routing-for-ptokendemo) · [ADMIN_NOTIFY_EMAILS back to PUBLIC once business email exists](#admin_notify_emails-is-temporarily-a-secret-move-back-to-public-once-business-email-exists) · [Notification preferences UI shipped but not yet enforced](#notification-preferences-ui-shipped-but-not-yet-enforced-in-send-logic) · [Signed-contract download is Markdown, not PDF](#signed-contract-download-is-markdown-not-pdf) · [`/api/portal/auth/change-password` is still stubbed](#apiportalauthchange-password-is-still-stubbed) · [Notes fields are single TEXT, spec asked for append-only](#notes-fields-are-single-text-spec-asked-for-append-only-with-timestamps) · [Margin/buffer indicators not implemented](#marginbuffer-indicators-not-implemented) · [Conversation context is the last 20 messages](#conversation-context-is-the-last-20-messages)
+- *Triggered by a second admin user:* [Owner-picker UX deferred until multi-admin](#owner-picker-ux-deferred-until-multi-admin) · [`/api/admin/auth/change-password` does not exist](#apiadminauthchange-password-does-not-exist)
+- *Triggered by feature need:* [Bootstrap admin script — residual polish](#bootstrap-admin-script--residual-polish-mostly-resolved-in-m6) · [Front-ends share one Pages deploy (path-based topology)](#front-end-surfaces-share-one-pages-deploy-path-based-topology) · [Optional `/p/:token/demo/` spec-prefix rewrite](#production-routing-for-ptokendemo) · [ADMIN_NOTIFY_EMAILS back to PUBLIC once business email exists](#admin_notify_emails-is-temporarily-a-secret-move-back-to-public-once-business-email-exists) · [Notification preferences UI shipped but not yet enforced](#notification-preferences-ui-shipped-but-not-yet-enforced-in-send-logic) · [Signed-contract download is Markdown, not PDF](#signed-contract-download-is-markdown-not-pdf) · [`/api/portal/auth/change-password` is still stubbed](#apiportalauthchange-password-is-still-stubbed) · [Notes fields are single TEXT, spec asked for append-only](#notes-fields-are-single-text-spec-asked-for-append-only-with-timestamps) · [Margin/buffer indicators not implemented](#marginbuffer-indicators-not-implemented) · [Conversation context is the last 20 messages](#conversation-context-is-the-last-20-messages)
 - *Triggered by a future data shape:* [`updated_at` only on `proposal`](#updated_at-only-on-proposal-other-entities-still-missing-it) · [`setup_and_monthly` unit_type contributes to BOTH buckets](#setup_and_monthly-unit_type-contributes-to-both-buckets) · [Clone of accepted proposal copies opportunity name verbatim](#clone-of-accepted-proposal-copies-opportunity-name-verbatim) · [Stripe subscription status enum is a 3-bucket lossy projection](#stripe-subscription-status-enum-is-a-3-bucket-lossy-projection) · [`notification.kind` enum missing change_order_rejected + change_order_failed](#notificationkind-enum-is-missing-change_order_rejected--change_order_failed) · [Temp password plaintext cached in KV with 24h TTL](#temp-password-plaintext-cached-in-kv-with-24h-ttl) · [client.status flips to 'active' on acceptance](#clientstatus-flips-to-active-on-acceptance-not-a-separate-activating-state) · [Status state-machines server-permissive client-restrictive](#status-state-machines-are-server-permissive-client-restrictive) · [Proposal totals cache-and-update on the proposal row](#proposal-totals-cache-and-update-on-the-proposal-row) · [Presentation HTML inlines its own JS bundle](#presentation-html-inlines-its-own-10-kb-js-bundle) · [Calculator's custom-line-item prompt is `window.prompt()`](#calculators-custom-line-item-prompt-is-windowprompt) · [Chat system prompt lives in a `.ts` file, not a `.md`](#chat-system-prompt-lives-in-a-ts-file-not-a-md) · [Chat dev-mode stub when ANTHROPIC_API_KEY is placeholder](#chat-dev-mode-stub-when-anthropic_api_key-is-placeholder) · [Admin SPA framework decision (locked)](#admin-spa-framework-decision-locked) · [`@cloudflare/workers-types` version bump](#cloudflareworkers-types-version-bump)
 
 **By step in which the deferral was decided** (newest first):
 
+- *M.6 build:* [Bootstrap admin script — remote/env support added, residual polish only](#bootstrap-admin-script--residual-polish-mostly-resolved-in-m6)
 - *M.4 build:* [Front-ends share one Pages deploy (path-based topology)](#front-end-surfaces-share-one-pages-deploy-path-based-topology) · [`/p/:token/demo/` spec-prefix rewrite reduced to optional](#production-routing-for-ptokendemo)
 - *M.3 build:* [ADMIN_NOTIFY_EMAILS back to PUBLIC once business email exists](#admin_notify_emails-is-temporarily-a-secret-move-back-to-public-once-business-email-exists)
 - *K2 build:* [Notification preferences UI shipped but not yet enforced](#notification-preferences-ui-shipped-but-not-yet-enforced-in-send-logic)
@@ -27,7 +28,7 @@ Each entry: what, why deferred, when to revisit. New entries go at the top
 - *G1 build:* [Proposal totals cache-and-update on the proposal row](#proposal-totals-cache-and-update-on-the-proposal-row) · [`setup_and_monthly` unit_type contributes to BOTH buckets](#setup_and_monthly-unit_type-contributes-to-both-buckets) · [Clone of accepted proposal copies opportunity name verbatim](#clone-of-accepted-proposal-copies-opportunity-name-verbatim)
 - *F build:* [CORS on `/api/chat/*` is wide-open](#cors-on-apichat-is-wide-open) · [Chat system prompt lives in a `.ts` file, not a `.md`](#chat-system-prompt-lives-in-a-ts-file-not-a-md) · [Chat dev-mode stub when ANTHROPIC_API_KEY is placeholder](#chat-dev-mode-stub-when-anthropic_api_key-is-placeholder) · [Conversation context is the last 20 messages](#conversation-context-is-the-last-20-messages)
 - *E build:* [Admin SPA framework decision (locked)](#admin-spa-framework-decision-locked) · [Notes fields are single TEXT, spec asked for append-only](#notes-fields-are-single-text-spec-asked-for-append-only-with-timestamps) · [Owner-picker UX deferred until multi-admin](#owner-picker-ux-deferred-until-multi-admin) · [Status state-machines server-permissive client-restrictive](#status-state-machines-are-server-permissive-client-restrictive)
-- *D scoping/wrap-up:* [v1 bootstrap admin script](#v1-bootstrap-admin-script--replace-before-second-admin) · [Session row cleanup (D1)](#session-row-cleanup-d1) · [`/api/admin/auth/change-password` does not exist](#apiadminauthchange-password-does-not-exist) · [`/api/portal/auth/change-password` is still stubbed](#apiportalauthchange-password-is-still-stubbed)
+- *D scoping/wrap-up:* [Bootstrap admin script (mostly resolved in M.6)](#bootstrap-admin-script--residual-polish-mostly-resolved-in-m6) · [Session row cleanup (D1)](#session-row-cleanup-d1) · [`/api/admin/auth/change-password` does not exist](#apiadminauthchange-password-does-not-exist) · [`/api/portal/auth/change-password` is still stubbed](#apiportalauthchange-password-is-still-stubbed)
 - *B follow-up:* [`@cloudflare/workers-types` version bump](#cloudflareworkers-types-version-bump)
 
 (Step L added no new entries — the L work surfaced only existing ones and
@@ -35,7 +36,11 @@ expanded the notification-prefs callsite map. Step M.3 RESOLVED three
 entries by migrating hardcoded URLs to env vars: "Portal URL hardcoded
 in activation service," "New-lead notification email hardcoded admin
 URL," and "Calculator's 'Preview presentation' URL hardcoded." Those
-entries are removed from this file.)
+entries are removed from this file. Step M.6 largely RESOLVED the
+"v1 bootstrap admin script" entry — the seed script gained `--remote` +
+`--env` + reusable identity + a `--dry-run` inspect mode — leaving only
+minor residual polish (no audit_log row; not an interactive CLI), so that
+entry is retained in slimmed form rather than removed.)
 
 ---
 
@@ -371,18 +376,20 @@ entries are removed from this file.)
 - **When to revisit:** if data hygiene becomes a problem (e.g., audit shows clients flipping between statuses constantly) or if we add cross-status invariants (e.g., "can't go from active back to prospect without a reason"). At that point, encode the state machine on the server.
 - **Decided:** during step E build.
 
-## v1 bootstrap admin script — replace before second admin
+## Bootstrap admin script — residual polish (mostly resolved in M.6)
 
-- **What:** `worker/scripts/seed-bootstrap-admin.mjs`. Hardcoded email + name, generates a random password, hashes via bcryptjs at 12 rounds, `INSERT OR IGNORE` into `admin_user`, prints the plaintext once. Local-only (no `--remote` flag). Does **not** write an `audit_log` row for the bootstrap event.
-- **Why deferred:** approved as v1 expedient. The proper CLI flow (interactive prompts for email/name/password, `--remote` confirmation gate, `--generate` mode, `audit_log` row, exit-code-driven invariants, tested end-to-end via the actual auth API) was designed but not built.
-- **Limitations of the v1 bootstrap as it stands:**
-  - Only creates one user; not reusable for additional admins.
-  - No `--remote` — can only seed local D1.
-  - No audit_log row written for the bootstrap event.
-  - Email/name are constants in the source file; changing requires editing the script.
-  - Idempotent on the email column only (re-running with a different email creates a *second* admin without warning).
-- **Trigger to revisit:** NOW DUE in M.6. The staging (and later production) deploy needs an admin user on the *remote* D1 to verify `/admin` login, but this script is `--local`-only — it cannot seed staging/prod. Runbook §6.6 lays out the two unblock options: (a) a one-off `wrangler d1 execute <db> --env <env> --remote` insert with a locally-computed bcrypt hash, or (b) extend this script with `--remote` + env/db-name support (which also resolves this entry). The original "before a second admin" trigger still stands beyond that. Once the proper CLI exists, delete this script.
-- **Decided:** during step D scoping. Escalated to M.6-blocking during the M.6 deploy-plan write-up.
+- **Resolved in M.6 (option b):** `worker/scripts/seed-bootstrap-admin.mjs` was extended so the original blocking limitations are gone. It now:
+  - accepts `--env staging|production` and resolves the remote D1 `database_name` from `wrangler.toml`, running against `--remote` (no `--env` ⇒ unchanged local-dev behavior, `bussey-bussey --local`);
+  - accepts `--name` / `--email` overrides (defaults `Micaiah Bussey` / `mrmicaiah@gmail.com`, role `owner`) — so it's reusable for additional admins, not a single hardcoded user;
+  - has a `--dry-run` inspect mode that prints the resolved target + the exact SQL/column shape without contacting wrangler or generating a password;
+  - is idempotent per target environment (pre-checks the email, makes no changes + says so if it exists, never rotates/overwrites);
+  - generates a 24-char random password, bcrypt-hashes at 12 rounds (matches `worker/src/lib/password.ts`), inserts with a fresh UUID, prints the plaintext exactly once (never to file/log).
+- **Residual (minor, still deferred):**
+  - No `audit_log` row is written for the bootstrap-creation event.
+  - Not a fully interactive CLI (no prompts; identity comes from flags/defaults).
+  - Idempotency keys on email only — running with a *different* `--email` intentionally creates another admin (now a feature, but no extra confirmation).
+- **When to revisit:** the residual is polish, not a blocker. Fold the `audit_log` row + an interactive/confirmation mode in if/when a proper admin-management CLI is built. No deploy depends on it.
+- **Decided:** v1 expedient at step D scoping; remote/env/reusable support added in M.6.
 
 ## Session row cleanup (D1)
 
