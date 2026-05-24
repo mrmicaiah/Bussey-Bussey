@@ -11,8 +11,8 @@ export default function (eleventyConfig) {
   // `${DEMO_URL_BASE}/demos/[token]/` (configured via the Worker's env).
   eleventyConfig.addPassthroughCopy({ '../demos': 'demos' });
 
-  // Collections — articles, blog posts, case studies — ordered by date desc.
-  for (const name of ['articles', 'blog', 'case-studies']) {
+  // Collections — articles, blog posts — ordered by date desc.
+  for (const name of ['articles', 'blog']) {
     eleventyConfig.addCollection(name, (api) =>
       api
         .getFilteredByGlob(`src/${name}/*.md`)

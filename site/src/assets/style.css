@@ -1,10 +1,10 @@
 :root {
-  --bg: #f7f7f5;
+  --bg: #ffffff;
   --surface: #ffffff;
-  --border: #e3e3df;
-  --text: #1a1a1a;
+  --border: #e5e5e2;
+  --text: #0a0a0a;
   --muted: #6b6b66;
-  --accent: #1f3a5f;
+  --accent: #c1121f;
   --accent-text: #ffffff;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   font-size: 16px;
@@ -123,3 +123,141 @@ a:hover { text-decoration: underline; }
 .post-list p { margin: 0; }
 
 .post h1 { margin-top: 0; }
+
+/* ---------------------------------------------------------------------------
+   Chat-first homepage — hero, rotating tagline, content sections, image bands.
+   The hero is deliberately empty (Google model); crimson is used sparingly.
+   --------------------------------------------------------------------------- */
+
+.home-hero {
+  min-height: calc(100vh - 70px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem 1.5rem 3rem;
+}
+
+.home-tagline {
+  font-size: clamp(1.6rem, 4.5vw, 2.5rem);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  margin: 0 0 1.75rem;
+  max-width: 16em;
+  min-height: 1.2em;
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+
+.home-chat {
+  width: 100%;
+  max-width: 520px;
+}
+
+.encrypted {
+  margin-top: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.encrypted svg { width: 14px; height: 14px; flex: none; }
+
+/* Readable prose sections (no image). */
+.section-text {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 4rem 1.5rem;
+}
+.section-text h2 {
+  font-size: clamp(1.6rem, 3.5vw, 2.1rem);
+  line-height: 1.15;
+  margin: 0 0 1.25rem;
+}
+.section-text h2::after {
+  content: "";
+  display: block;
+  width: 40px;
+  height: 3px;
+  background: var(--accent);
+  margin-top: 0.85rem;
+}
+.section-text h3 {
+  font-size: 1.3rem;
+  margin: 2.75rem 0 0.75rem;
+}
+.section-text p {
+  margin: 0 0 1.1rem;
+  font-size: 1.08rem;
+  color: #2a2a2a;
+}
+
+/* Full-width image bands with a dark scrim and white overlay text. */
+.image-band {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.image-band img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+.image-band::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.image-band--tools::before { background: rgba(0, 0, 0, 0.45); }
+.image-band--provocative::before { background: rgba(0, 0, 0, 0.55); }
+.image-band .band-inner {
+  position: relative;
+  z-index: 2;
+  max-width: 760px;
+  padding: 5rem 1.5rem;
+  text-align: center;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+.image-band .band-inner h2,
+.image-band .band-inner h3 {
+  color: #fff;
+  margin-top: 0;
+  line-height: 1.15;
+}
+.image-band .band-inner p {
+  color: #fff;
+  font-size: 1.1rem;
+  margin: 0 0 1.1rem;
+}
+.image-band .band-inner p:last-child { margin-bottom: 0; }
+.image-band--provocative .band-inner { padding: 7rem 1.5rem; }
+.image-band--provocative .band-inner h3 {
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 600px) {
+  .image-band .band-inner { padding: 3.5rem 1.25rem; }
+  .image-band--provocative .band-inner { padding: 4.5rem 1.25rem; }
+}
+
+/* Quiet close — scrolls back up to the chat. */
+.home-close {
+  text-align: center;
+  padding: 3.5rem 1.5rem 5rem;
+}
+.home-close a {
+  font-size: 1.15rem;
+  font-weight: 600;
+}

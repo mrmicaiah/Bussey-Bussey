@@ -20,44 +20,64 @@
     sending: false,
     open: false,
     booted: false,
+    inline: false,
   };
 
   var els = {};
 
   function buildDom() {
-    var bubble = document.createElement('button');
-    bubble.id = 'bb-chat-bubble';
-    bubble.type = 'button';
-    bubble.setAttribute('aria-label', 'Open chat');
-    bubble.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
-    bubble.onclick = openWidget;
+    // Inline mode: when the homepage provides a #bb-chat-inline mount, the chat
+    // renders INTO it (embedded, open by default, no floating bubble). On every
+    // other page the mount is absent and we fall back to the corner bubble —
+    // that path is unchanged.
+    var inlineMount = document.getElementById('bb-chat-inline');
+    state.inline = !!inlineMount;
 
     var panel = document.createElement('div');
     panel.id = 'bb-chat-panel';
     panel.setAttribute('role', 'dialog');
     panel.setAttribute('aria-label', 'Chat with Bussey and Bussey');
+
+    // Inline mount: no header/close, blank input placeholder (we don't prompt).
+    var headerHtml = state.inline
+      ? ''
+      : '<header>' +
+          '<strong>Bussey and Bussey</strong>' +
+          '<button id="bb-chat-close" type="button" aria-label="Close">×</button>' +
+        '</header>';
+    var placeholder = state.inline ? '' : 'Type your message…';
     panel.innerHTML =
-      '<header>' +
-        '<strong>Bussey and Bussey</strong>' +
-        '<button id="bb-chat-close" type="button" aria-label="Close">×</button>' +
-      '</header>' +
+      headerHtml +
       '<div id="bb-chat-messages" class="bb-chat-messages" aria-live="polite"></div>' +
       '<form id="bb-chat-form">' +
-        '<textarea id="bb-chat-input" rows="2" placeholder="Type your message…" maxlength="3000"></textarea>' +
+        '<textarea id="bb-chat-input" rows="2" placeholder="' + placeholder + '" maxlength="3000"></textarea>' +
         '<button id="bb-chat-send" type="submit">Send</button>' +
       '</form>';
 
-    document.body.appendChild(bubble);
-    document.body.appendChild(panel);
+    if (state.inline) {
+      panel.classList.add('bb-chat-panel--inline');
+      inlineMount.appendChild(panel);
+    } else {
+      var bubble = document.createElement('button');
+      bubble.id = 'bb-chat-bubble';
+      bubble.type = 'button';
+      bubble.setAttribute('aria-label', 'Open chat');
+      bubble.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>';
+      bubble.onclick = openWidget;
+      document.body.appendChild(bubble);
+      document.body.appendChild(panel);
+      els.bubble = bubble;
+    }
 
-    els.bubble = bubble;
     els.panel = panel;
     els.messages = panel.querySelector('#bb-chat-messages');
     els.form = panel.querySelector('#bb-chat-form');
     els.input = panel.querySelector('#bb-chat-input');
     els.send = panel.querySelector('#bb-chat-send');
 
-    panel.querySelector('#bb-chat-close').onclick = closeWidget;
+    if (!state.inline) {
+      panel.querySelector('#bb-chat-close').onclick = closeWidget;
+    }
     els.form.onsubmit = onSubmit;
     els.input.addEventListener('keydown', function (e) {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -65,6 +85,14 @@
         onSubmit(e);
       }
     });
+
+    // Inline chat is open immediately and auto-boots the session so the
+    // assistant's greeting is visible without a click.
+    if (state.inline) {
+      state.open = true;
+      bootSession();
+      setTimeout(function () { els.input && els.input.focus(); }, 50);
+    }
   }
 
   function openWidget() {
@@ -204,22 +232,23 @@
 
   // Inline minimal CSS so the widget doesn't depend on the site stylesheet.
   var css = '\
-#bb-chat-bubble { position: fixed; right: 1.5rem; bottom: 1.5rem; width: 56px; height: 56px; border-radius: 50%; border: none; background: #1f3a5f; color: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 999; }\
+#bb-chat-bubble { position: fixed; right: 1.5rem; bottom: 1.5rem; width: 56px; height: 56px; border-radius: 50%; border: none; background: #c1121f; color: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 999; }\
 #bb-chat-bubble:hover { filter: brightness(1.05); }\
 body.bb-chat-open #bb-chat-bubble { display: none; }\
-#bb-chat-panel { display: none; position: fixed; right: 1.5rem; bottom: 1.5rem; width: 360px; max-width: calc(100vw - 1rem); height: 520px; max-height: calc(100vh - 2rem); background: #fff; border: 1px solid #e3e3df; border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.18); flex-direction: column; z-index: 1000; overflow: hidden; }\
+#bb-chat-panel { display: none; position: fixed; right: 1.5rem; bottom: 1.5rem; width: 360px; max-width: calc(100vw - 1rem); height: 520px; max-height: calc(100vh - 2rem); background: #fff; border: 1px solid #e5e5e2; border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.18); flex-direction: column; z-index: 1000; overflow: hidden; }\
 body.bb-chat-open #bb-chat-panel { display: flex; }\
 @media (max-width: 600px) { body.bb-chat-open #bb-chat-panel { right: 0; bottom: 0; width: 100%; height: 100%; max-height: 100%; max-width: 100%; border-radius: 0; border: none; } }\
-#bb-chat-panel header { padding: 0.75rem 1rem; border-bottom: 1px solid #e3e3df; display: flex; justify-content: space-between; align-items: center; }\
+#bb-chat-panel.bb-chat-panel--inline { display: flex; position: static; right: auto; bottom: auto; width: 100%; max-width: 100%; height: 460px; max-height: 70vh; box-shadow: 0 6px 24px rgba(0,0,0,0.10); }\
+#bb-chat-panel header { padding: 0.75rem 1rem; border-bottom: 1px solid #e5e5e2; display: flex; justify-content: space-between; align-items: center; }\
 #bb-chat-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6b6b66; line-height: 1; }\
 .bb-chat-messages { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }\
 .bb-msg { padding: 0.5rem 0.75rem; border-radius: 12px; max-width: 85%; white-space: pre-wrap; line-height: 1.4; }\
 .bb-msg-assistant { background: #f0f0ec; align-self: flex-start; }\
-.bb-msg-user { background: #1f3a5f; color: #fff; align-self: flex-end; }\
-#bb-chat-form { display: flex; padding: 0.5rem; gap: 0.5rem; border-top: 1px solid #e3e3df; }\
-#bb-chat-input { flex: 1; border: 1px solid #e3e3df; border-radius: 6px; padding: 0.5rem; font: inherit; resize: none; }\
-#bb-chat-input:focus { outline: 2px solid #1f3a5f; outline-offset: -1px; }\
-#bb-chat-send { padding: 0.5rem 0.9rem; background: #1f3a5f; color: #fff; border: none; border-radius: 6px; cursor: pointer; }\
+.bb-msg-user { background: #c1121f; color: #fff; align-self: flex-end; }\
+#bb-chat-form { display: flex; padding: 0.5rem; gap: 0.5rem; border-top: 1px solid #e5e5e2; }\
+#bb-chat-input { flex: 1; border: 1px solid #e5e5e2; border-radius: 6px; padding: 0.5rem; font: inherit; resize: none; }\
+#bb-chat-input:focus { outline: 2px solid #c1121f; outline-offset: -1px; }\
+#bb-chat-send { padding: 0.5rem 0.9rem; background: #c1121f; color: #fff; border: none; border-radius: 6px; cursor: pointer; }\
 #bb-chat-send:disabled { opacity: 0.5; cursor: not-allowed; }\
 ';
   var style = document.createElement('style');
