@@ -1,15 +1,21 @@
 :root {
   --bg: #ffffff;
   --surface: #ffffff;
-  --border: #e5e5e2;
-  --text: #0a0a0a;
-  --muted: #6b6b66;
-  --accent: #c1121f;
+  --ink: #0a0a0a;          /* near-black — primary text & hard borders */
+  --ink-soft: #222222;     /* body paragraph text */
+  --muted: #666666;
+  --accent: #d40b1e;       /* sharp crimson — the brand red */
   --accent-text: #ffffff;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --hair: #e3e3df;         /* light hairline for subtle internal rules */
+  --font-display: 'Space Grotesk', sans-serif;
+  --font-body: 'Instrument Sans', sans-serif;
+  /* Legacy aliases so pre-existing rules keep resolving to the new palette. */
+  --text: var(--ink);
+  --border: var(--hair);
+  font-family: var(--font-body);
   font-size: 16px;
   line-height: 1.55;
-  color: var(--text);
+  color: var(--ink);
 }
 
 * { box-sizing: border-box; }
@@ -17,7 +23,10 @@
 body {
   margin: 0;
   background: var(--bg);
+  font-family: var(--font-body);
 }
+
+h1, h2, h3, h4 { font-family: var(--font-display); }
 
 a {
   color: var(--accent);
@@ -42,22 +51,58 @@ a:hover { text-decoration: underline; }
 .small { font-size: 0.9rem; }
 .lead  { font-size: 1.15rem; color: var(--muted); }
 
+/* Header — stacked brand lockup left, nav right, hard 1px ink rule below. */
 .site-header {
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--ink);
 }
-.site-header .container {
+.site-header__inner {
   display: flex;
   justify-content: space-between;
+  align-items: flex-end;
+  gap: 1.5rem;
+  padding-top: 18px;
+  padding-bottom: 18px;
+}
+.brand-lockup { display: block; line-height: 1.1; }
+.brand-lockup:hover { text-decoration: none; }
+.brand-name {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.brand-name .amp { color: var(--accent); }
+.brand-tagline {
+  display: block;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.site-nav {
+  display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  font-family: var(--font-body);
+  font-size: 13px;
 }
-.brand {
-  font-weight: 600;
-  color: var(--text);
+.site-nav a { color: var(--ink-soft); }
+.site-nav a:hover { color: var(--accent); text-decoration: none; }
+.site-nav a:not(:last-child)::after {
+  content: "·";
+  margin: 0 0.55rem;
+  color: var(--muted);
 }
-.site-header nav { display: flex; gap: 1rem; flex-wrap: wrap; }
-.site-header nav a { color: var(--muted); }
-.site-header nav a:hover { color: var(--text); text-decoration: none; }
+@media (max-width: 700px) {
+  .site-header__inner { flex-direction: column; align-items: flex-start; gap: 0.85rem; }
+  .site-nav { font-size: 12.5px; }
+}
 
 .site-footer {
   margin-top: 4rem;
@@ -125,74 +170,106 @@ a:hover { text-decoration: underline; }
 .post h1 { margin-top: 0; }
 
 /* ---------------------------------------------------------------------------
-   Chat-first homepage — hero, rotating tagline, content sections, image bands.
-   The hero is deliberately empty (Google model); crimson is used sparingly.
+   Chat-first homepage — "white but sharp": display headline, crimson rotating
+   question, hard-framed chat, eyebrow-labelled sections, scrim image bands.
    --------------------------------------------------------------------------- */
 
 .home-hero {
-  min-height: calc(100vh - 70px);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 2rem 1.5rem 3rem;
+  padding: 56px 1.5rem 52px;
 }
 
+.hero-headline {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2rem, 5vw, 2.6rem);
+  letter-spacing: -0.035em;
+  line-height: 1.04;
+  color: var(--ink);
+  max-width: 13em;
+  margin: 0 0 16px;
+}
+
+/* The rotating question — demoted from the headline: small + crimson. */
 .home-tagline {
-  font-size: clamp(1.6rem, 4.5vw, 2.5rem);
-  font-weight: 600;
-  line-height: 1.15;
+  font-family: var(--font-body);
+  font-size: 1.1rem;
+  font-weight: 500;
   letter-spacing: -0.01em;
-  margin: 0 0 1.75rem;
-  max-width: 16em;
-  min-height: 1.2em;
+  color: var(--accent);
+  margin: 0 0 30px;
+  min-height: 1.5em;
   opacity: 1;
   transition: opacity 0.5s ease;
 }
 
 .home-chat {
   width: 100%;
-  max-width: 520px;
+  max-width: 540px;
+  margin-bottom: 18px;
 }
 
 .encrypted {
-  margin-top: 1.25rem;
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 12.5px;
 }
 .encrypted svg { width: 14px; height: 14px; flex: none; }
 
+/* Uppercase crimson eyebrow above each section heading. */
+.eyebrow {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 16px;
+}
+.eyebrow--on-dark { color: #f0626c; }
+
 /* Readable prose sections (no image). */
 .section-text {
-  max-width: 720px;
+  max-width: 660px;
   margin: 0 auto;
-  padding: 4rem 1.5rem;
+  padding: 52px 1.5rem;
 }
 .section-text h2 {
-  font-size: clamp(1.6rem, 3.5vw, 2.1rem);
-  line-height: 1.15;
-  margin: 0 0 1.25rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(1.7rem, 3.5vw, 2rem);
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: var(--ink);
+  margin: 0 0 1.1rem;
 }
 .section-text h2::after {
   content: "";
   display: block;
-  width: 40px;
+  width: 46px;
   height: 3px;
   background: var(--accent);
   margin-top: 0.85rem;
 }
 .section-text h3 {
-  font-size: 1.3rem;
-  margin: 2.75rem 0 0.75rem;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.25rem;
+  color: var(--ink);
+  margin: 2.5rem 0 0.75rem;
 }
 .section-text p {
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.7;
+  color: var(--ink-soft);
   margin: 0 0 1.1rem;
-  font-size: 1.08rem;
-  color: #2a2a2a;
 }
 
 /* Full-width image bands with a dark scrim and white overlay text. */
@@ -218,46 +295,64 @@ a:hover { text-decoration: underline; }
   inset: 0;
   z-index: 1;
 }
-.image-band--tools::before { background: rgba(0, 0, 0, 0.45); }
-.image-band--provocative::before { background: rgba(0, 0, 0, 0.55); }
+.image-band--tools::before { background: rgba(10, 10, 10, 0.5); }
+.image-band--provocative::before { background: rgba(10, 10, 10, 0.58); }
 .image-band .band-inner {
   position: relative;
   z-index: 2;
-  max-width: 760px;
-  padding: 5rem 1.5rem;
+  max-width: 640px;
+  padding: 56px 30px;
   text-align: center;
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
 }
 .image-band .band-inner h2,
 .image-band .band-inner h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
   color: #fff;
-  margin-top: 0;
-  line-height: 1.15;
+  letter-spacing: -0.03em;
+  line-height: 1.06;
+  margin: 0 0 1rem;
+}
+.image-band .band-inner h2 {
+  font-size: clamp(1.7rem, 3.5vw, 2.1rem);
 }
 .image-band .band-inner p {
-  color: #fff;
-  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 15.5px;
+  line-height: 1.65;
   margin: 0 0 1.1rem;
 }
 .image-band .band-inner p:last-child { margin-bottom: 0; }
-.image-band--provocative .band-inner { padding: 7rem 1.5rem; }
+.image-band--provocative .band-inner { padding: 72px 30px; }
 .image-band--provocative .band-inner h3 {
-  font-size: clamp(1.8rem, 4vw, 2.6rem);
-  margin-bottom: 1.5rem;
+  font-size: clamp(1.9rem, 4.5vw, 2.6rem);
 }
 
 @media (max-width: 600px) {
-  .image-band .band-inner { padding: 3.5rem 1.25rem; }
-  .image-band--provocative .band-inner { padding: 4.5rem 1.25rem; }
+  .image-band .band-inner { padding: 44px 20px; }
+  .image-band--provocative .band-inner { padding: 56px 20px; }
 }
 
-/* Quiet close — scrolls back up to the chat. */
+/* Close — a bordered pill that fills crimson on hover; scrolls to the chat. */
 .home-close {
   text-align: center;
-  padding: 3.5rem 1.5rem 5rem;
+  padding: 52px 1.5rem 64px;
 }
 .home-close a {
-  font-size: 1.15rem;
+  display: inline-block;
+  font-family: var(--font-display);
   font-weight: 600;
+  font-size: 1.05rem;
+  color: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  padding: 0.7rem 1.4rem;
+}
+.home-close a:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  text-decoration: none;
 }
