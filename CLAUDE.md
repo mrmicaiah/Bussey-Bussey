@@ -11,8 +11,10 @@ _Describe what this project is for. The manager will update this section as unde
 **Step M in progress — production readiness.** Scope in
 `context/step-M-scope.md`. Tracked as 10 subtasks (M.1 → M.10) with
 review after each. Sister doc `context/deployment-runbook.md` is being
-built up section by section as each subtask completes. M.1–M.3 done;
-M.4 done (Claude side, awaiting topology review). Next: M.5.
+built up section by section as each subtask completes. M.1–M.4 done
+(topology approved, zone Active, routes live); M.5 documented (user-side
+dashboard + secret install pending). Next: M.6 (deploy) — ON HOLD pending
+user review of the deploy plan.
 
 **M.1 done and reviewed.** `[env.staging]` and `[env.production]`
 blocks added to `worker/wrangler.toml` with `REPLACE_WITH_*` ID
@@ -73,6 +75,28 @@ filled in record-by-record; `context/env-vars.md` URL-base entries
 updated. Downstream: Stripe webhook URL for M.5 is
 `https://busseyandbussey.com/api/webhooks/stripe` (supersedes the
 `api.` guess in scope). DNS changes themselves are user-side (M-human).
+
+**Zone Active + routes live (2026-05-23).** User confirmed
+`busseyandbussey.com` is an Active Cloudflare zone. The four worker
+`routes` blocks in `wrangler.toml` (prod `…/api/*` + `/p/*`, staging
+`staging.…/api/*` + `/p/*`) are uncommented; both envs dry-run clean.
+Production routes are config-active but the prod *deploy* stays gated
+(secrets + pk_live_ + M.6 review).
+
+**M.5 done (doc; user-side execution pending).** Worker side was already
+built — `POST /api/webhooks/stripe`, public, signature-verified against
+`STRIPE_WEBHOOK_SECRET`, **no dev bypass** (500 if secret missing, 400 on
+bad signature); handler branches on exactly the five scope events (verified
+against `worker/src/routes/webhooks/stripe.ts`). Runbook §5 documents: one
+endpoint per env (staging Test-mode → `https://staging.busseyandbussey.com/
+api/webhooks/stripe`, production Live-mode → `https://busseyandbussey.com/
+api/webhooks/stripe`), the five events, and `wrangler secret put
+STRIPE_WEBHOOK_SECRET --env <env>` (this is the secret §3 deferred).
+**Sequencing flagged:** the Stripe endpoint can be created + its secret
+installed now, but staging *delivery testing* is gated behind the M.6
+staging deploy + the staging Pages custom-domain attach (the
+`staging.busseyandbussey.com` hostname doesn't exist until then).
+Dashboard config + secret install are M-human (needs the Stripe account).
 
 **v1 build structurally complete.** Step L (calling list) built and
 smoke-tested green; scope in `context/step-L-scope.md`, results in

@@ -19,11 +19,14 @@ Sections are organized by the workflow's natural order:
 9. **Backup** — what we have, what's missing (M.9)
 10. **Rollback** — how to revert each surface
 
-> **Status:** M.1, M.2, M.3 complete (all secrets installed + verified).
-> M.4 (domain + DNS) documented below — topology decided (path-based),
-> wrangler.toml URL bases + commented routes updated; the DNS changes
-> themselves are the user's to make in the Cloudflare dashboard.
-> Sections 5 onward are skeleton headings for later subtasks (M.5 → M.10).
+> **Status:** M.1, M.2, M.3 complete. M.4 complete — topology decided
+> (path-based); the `busseyandbussey.com` zone is Active (2026-05-23) and
+> the worker `routes` blocks in `wrangler.toml` are now uncommented +
+> dry-run-validated for both envs. M.5 (Stripe webhooks) documented below
+> — the dashboard config + secret install are user-side (needs the Stripe
+> account); staging delivery testing is gated behind the M.6 staging
+> deploy. Sections 6 onward are skeleton headings (M.6 → M.10). **M.6
+> deploy is on hold pending user review of the deploy plan.**
 
 ---
 
@@ -609,16 +612,153 @@ stray subdomain exists.
 
 ## 5. Stripe webhook configuration (M.5)
 
-_To be filled in by M.5._
+The worker side is already built: `POST /api/webhooks/stripe`
+(`worker/src/routes/webhooks/index.ts`), public (not auth-gated — Stripe
+calls it unauthenticated), signature-verified against
+`STRIPE_WEBHOOK_SECRET` on every delivery. **Signature verification is
+mandatory in every environment — there is no dev/staging bypass**
+(`worker/src/routes/webhooks/stripe.ts`): a missing secret → HTTP 500
+`webhook_secret_missing`; a bad/absent signature → HTTP 400. So the
+`STRIPE_WEBHOOK_SECRET` for an environment must be installed before that
+environment can process *any* webhook.
 
-Outline:
+**This whole section is yours to execute (M-human)** — it needs your
+Stripe account. Claude's part (the endpoint URLs, the event list, the
+install commands, the sequencing) is documented here; the dashboard
+clicks and the `wrangler secret put` are yours.
 
-- Add endpoint in Stripe Dashboard → Developers → Webhooks
-- Endpoint URL based on the M.4 host decision
-- Events to subscribe (see the list in
-  `worker/src/routes/webhooks/stripe.ts`)
-- Capture the signing secret → `wrangler secret put
-  STRIPE_WEBHOOK_SECRET --env production`
+One webhook endpoint **per environment**, each created in its matching
+Stripe **mode**: staging in **Test mode** (pairs with the `sk_test_…` /
+`pk_test_…` keys), production in **Live mode** (pairs with `sk_live_…` —
+which requires Stripe business activation, so the production endpoint is
+gated on that, consistent with §3). Test-mode and Live-mode webhook
+endpoints are entirely separate lists in the Stripe dashboard and each
+issues its own `whsec_…` signing secret.
+
+### 5.0 Endpoint URLs (from the path-based topology, §4)
+
+| Environment | Mode | Endpoint URL |
+|-------------|------|--------------|
+| Staging     | Test | `https://staging.busseyandbussey.com/api/webhooks/stripe` |
+| Production  | Live | `https://busseyandbussey.com/api/webhooks/stripe` |
+
+Both are served by the `…/api/*` worker route added in §4. (These
+supersede the `api.busseyandbussey.com/...` placeholder in the M scope
+outline — that was written before the topology was decided.)
+
+### 5.1 Sequencing — read this before you start
+
+There are two distinct milestones, and they have different
+prerequisites:
+
+1. **Creating the endpoint + installing the signing secret** — can be
+   done **now**. Stripe registers the URL and issues the `whsec_…` secret
+   immediately; it does not require the URL to be reachable yet. Likewise
+   `wrangler secret put STRIPE_WEBHOOK_SECRET --env <env>` only writes a
+   secret to the worker — no live hostname needed.
+
+2. **Testing actual delivery** (Stripe "Send test event" returning `200`,
+   real events being processed) — is **GATED behind M.6** for each
+   environment. Stripe must be able to reach the URL, which requires:
+   - `staging.busseyandbussey.com` (or the apex, for prod) to **resolve
+     as a proxied hostname**. For staging this hostname comes into
+     existence when the **staging Pages custom domain is attached**
+     (§4.3 — that auto-creates the proxied `staging` DNS record), or via
+     a manually-added proxied `staging` record. **It does not exist
+     yet.**
+   - the worker to be **deployed** to that environment with the route
+     bound (`wrangler deploy --env <env>`, §6) — only then does the
+     `…/api/*` route actually serve.
+   - `STRIPE_WEBHOOK_SECRET` installed for that environment (step 5.4 /
+     5.5) — otherwise the worker answers `500 webhook_secret_missing`.
+
+   **→ Flagged answer to the sequencing question:** yes — for staging,
+   **attach the staging Pages custom domain (M.6) and deploy the staging
+   worker before you try to test the webhook endpoint.** You can create
+   the Stripe endpoint and install its secret beforehand, but a delivery
+   test will fail (host won't resolve / route won't serve) until the
+   staging hostname is live and the worker is deployed. The verification
+   step (§5.6) is therefore ordered *after* the M.6 staging deploy.
+
+### 5.2 Create the staging endpoint (Stripe **Test mode**)
+
+In the Stripe dashboard, confirm the mode toggle shows **Test mode**,
+then:
+
+1. **Developers → Webhooks → Add endpoint** (newer dashboards:
+   **Developers → Event destinations → Add destination → Webhook
+   endpoint**).
+2. **Endpoint URL:** `https://staging.busseyandbussey.com/api/webhooks/stripe`
+3. **Select events to send** → choose the five in §5.3 → **Add events**.
+4. **Add endpoint** to save.
+
+### 5.3 Events to subscribe (exactly five)
+
+These are the five the handler branches on
+(`worker/src/routes/webhooks/stripe.ts`); subscribing to extras is
+harmless (the handler returns `{ received: true, handled: false }` for
+anything else) but unnecessary, and missing one means that lifecycle
+event never reaches us:
+
+| Event | What the worker does with it |
+|-------|------------------------------|
+| `invoice.payment_succeeded` | Marks the invoice paid; advances billing state. |
+| `invoice.payment_failed` | Flags the failed payment; triggers the admin alert path. |
+| `customer.subscription.updated` | Syncs the local subscription status projection. |
+| `customer.subscription.deleted` | Marks the subscription ended. |
+| `payment_method.attached` | Records the attached payment method on the customer. |
+
+### 5.4 Capture + install the staging signing secret
+
+1. On the saved endpoint's page, reveal the **Signing secret**
+   (`whsec_…`).
+2. Install it on the staging worker (run from `worker/`):
+   ```bash
+   pnpm exec wrangler secret put STRIPE_WEBHOOK_SECRET --env staging
+   # paste the whsec_… value when prompted
+   ```
+3. Confirm it is present:
+   ```bash
+   pnpm exec wrangler secret list --env staging
+   # expect STRIPE_WEBHOOK_SECRET now alongside the five from §3
+   ```
+
+This is the secret that §3 deferred to M.5. After this, staging has all
+six worker secrets.
+
+### 5.5 Create the production endpoint (Stripe **Live mode**) — GATED
+
+Identical steps to 5.2–5.4 but with the dashboard in **Live mode** and
+the URL `https://busseyandbussey.com/api/webhooks/stripe`. **Gated on
+Stripe business activation** (Live mode is unavailable until then — same
+blocker as the `sk_live_…` / `pk_live_…` keys in §3). When live mode is
+active:
+
+```bash
+pnpm exec wrangler secret put STRIPE_WEBHOOK_SECRET --env production
+pnpm exec wrangler secret list --env production
+```
+
+Each environment's secret is distinct — the Test-mode `whsec_…` and the
+Live-mode `whsec_…` are different values; never cross them.
+
+### 5.6 Verify delivery (AFTER the M.6 staging deploy + staging domain)
+
+Once staging is deployed and `staging.busseyandbussey.com` resolves:
+
+1. Stripe dashboard → the staging endpoint → **Send test event** →
+   pick e.g. `invoice.payment_succeeded` → **Send**.
+2. Expect an HTTP **200** in the endpoint's delivery log. A **400** means
+   the signature didn't verify (wrong or stale secret installed); a
+   **500 `webhook_secret_missing`** means the secret isn't installed on
+   that environment; a connection error / Cloudflare error page means the
+   hostname isn't resolving or the worker route isn't serving yet (go
+   back to M.6).
+3. Optionally tail the worker while testing:
+   `pnpm exec wrangler tail --env staging` (see §8).
+
+Production delivery is verified as part of the M.10 production smoke test
+(`stripe trigger …` against the live endpoint), not here.
 
 ---
 

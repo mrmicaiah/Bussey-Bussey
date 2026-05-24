@@ -139,18 +139,19 @@ enabled = true
 # pattern wins). The /api/* route covers chat, admin, portal, and Stripe
 # webhook traffic; /p/* covers client presentation links.
 #
-# LEFT COMMENTED until the busseyandbussey.com zone is active on
-# Cloudflare (M.4 human step). Activating these before the zone exists
-# makes `wrangler deploy --env staging` fail when it tries to bind the
-# route. Secret install + `--dry-run` verification (runbook §3) do NOT
-# need them. Uncomment once DNS is live, then deploy (runbook §6).
-# [[env.staging.routes]]
-# pattern = "staging.busseyandbussey.com/api/*"
-# zone_name = "busseyandbussey.com"
-#
-# [[env.staging.routes]]
-# pattern = "staging.busseyandbussey.com/p/*"
-# zone_name = "busseyandbussey.com"
+# ACTIVATED — the busseyandbussey.com zone is live on Cloudflare (M.4
+# human step done 2026-05-23). `wrangler deploy --env staging` now binds
+# these routes. NOTE: the routes resolve against the zone, but staging
+# traffic only *serves* once staging.busseyandbussey.com exists as a
+# hostname — i.e. the staging Pages custom domain is attached (M.6) OR a
+# proxied DNS record for `staging` exists. See runbook §5 sequencing.
+[[env.staging.routes]]
+pattern = "staging.busseyandbussey.com/api/*"
+zone_name = "busseyandbussey.com"
+
+[[env.staging.routes]]
+pattern = "staging.busseyandbussey.com/p/*"
+zone_name = "busseyandbussey.com"
 
 # ─── PRODUCTION ─────────────────────────────────────────────────────
 #
@@ -218,13 +219,16 @@ enabled = true
 # webhooks) and /p/* (presentation links) on the apex, in front of the
 # Pages-served site/admin/portal.
 #
-# LEFT COMMENTED until the busseyandbussey.com zone is active AND the
-# production deployment gate clears (runbook §3 — production secrets +
-# pk_live_ key installed). Uncomment when deploying production (runbook §6).
-# [[env.production.routes]]
-# pattern = "busseyandbussey.com/api/*"
-# zone_name = "busseyandbussey.com"
-#
-# [[env.production.routes]]
-# pattern = "busseyandbussey.com/p/*"
-# zone_name = "busseyandbussey.com"
+# ACTIVATED — the busseyandbussey.com zone is live (2026-05-23), so these
+# bind on `wrangler deploy --env production`. NOTE: the *production deploy
+# itself* is still GATED until the production secrets + the real pk_live_
+# STRIPE_PUBLISHABLE_KEY are installed (runbook §3) and the M.6 deploy plan
+# is approved. These route definitions being active does not deploy
+# anything on their own — they only take effect on the next prod deploy.
+[[env.production.routes]]
+pattern = "busseyandbussey.com/api/*"
+zone_name = "busseyandbussey.com"
+
+[[env.production.routes]]
+pattern = "busseyandbussey.com/p/*"
+zone_name = "busseyandbussey.com"
