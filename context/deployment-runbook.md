@@ -824,11 +824,18 @@ pnpm --filter @bussey/portal build                                              
 **Confirmed output structure** (verified by building 2026-05-23):
 
 ```
-site/_site/     index.html, about/, services/, industries/, blog/,
+site/_site/     index.html, 404.html, about/, services/, industries/, blog/,
                 articles/, case-studies/, assets/, demos/, feed.xml, sitemap.xml
 admin/build/    index.html + _app/        (assets referenced as /admin/_app/…)
 portal/build/   index.html + _app/        (assets referenced as /portal/_app/…)
 ```
+
+> `site/_site/404.html` is emitted by `site/src/404.njk` (added 2026-05-24
+> while fixing the staging deep-link bug). It is carried into `dist/` for
+> free by the `cp -R site/_site dist` step below — no extra assemble
+> command. Without it, Cloudflare Pages falls *every* unmatched path back
+> to the site root `index.html` (200), which silently masks SPA deep-link
+> routing failures; with it, a genuine miss returns a visible 404.
 
 `adapter-static` does **not** nest output under the base path — the files
 sit at `build/` root and the in-HTML asset URLs are prefixed `/admin`
@@ -854,6 +861,7 @@ Result:
 ```
 dist/
 ├── index.html, about/, …, assets/, demos/   (site, served at /)
+├── 404.html                                  (real 404 — from site build, via cp -R)
 ├── _redirects                                (SPA fallback rules)
 ├── admin/   index.html + _app/               (served at /admin/*)
 └── portal/  index.html + _app/               (served at /portal/*)
@@ -871,9 +879,19 @@ dist/
 > themselves (assets take precedence in normal routing). **Verify on the
 > staging deploy (§6.4): (a) `/admin/_app/*.js` returns JavaScript, not
 > HTML, and (b) hard-reloading a deep link like `/admin/leads` serves the
-> admin shell, not the site homepage or a 404.** If assets are clobbered,
-> the fallback fix is to drop a top-level `dist/404.html` and/or narrow
-> the rules — but the scoped rules above are the expected-correct form.
+> admin shell, not the site homepage or a 404.**
+>
+> **History (2026-05-24).** This predicted failure mode actually hit the
+> first staging deploy: every hard-loaded non-asset path (incl. an
+> unrelated `/zzz`) served the site homepage at 200, because the live
+> deploy was a stale prior-run build whose `_redirects` predated the
+> scoped rules — so Pages' no-`404.html` default swallowed everything.
+> Fix, now in place: (1) `site/src/404.njk` ⇒ `dist/404.html` makes
+> genuine misses a *visible* 404 instead of a silent homepage, so this
+> class of bug can't hide again; (2) redeploy so the byte-correct scoped
+> `_redirects` is actually live. The discriminating proof on redeploy is
+> `/zzz-nonexistent-xyz → 404` (§6.4) — if that still returns the homepage
+> at 200, the custom domain is serving an old deployment, not the new one.
 
 ### 6.3 STAGING deploy — execution order
 
@@ -922,8 +940,20 @@ Run after steps 6.3.1–6.3.5 (and 6.3.6 for the login item):
 - [ ] `https://staging.busseyandbussey.com/` loads the **site**.
 - [ ] `https://staging.busseyandbussey.com/admin/` loads the **admin SPA**;
       `/admin/_app/*.js` returns JavaScript (not HTML — the `_redirects`
-      asset check); a hard-reloaded deep link (e.g. `/admin/leads`) serves
-      the admin shell.
+      asset check); a hard-reloaded deep link (e.g. `/admin/leads` AND a
+      nested `/admin/leads/<id>`) serves the admin shell (`<title>Bussey ·
+      Admin`), **not** the site homepage. Same for a portal deep link
+      (`/portal/billing/<id>` → `Bussey · Client Portal`). (This is the
+      2026-05-24 deep-link regression — see the §6.2 note.)
+- [ ] **Deep-link fallback discriminator:** a genuine miss returns a real
+      404, not the homepage:
+      ```bash
+      curl -s -o /dev/null -w '%{http_code}\n' \
+        https://staging.busseyandbussey.com/zzz-nonexistent-xyz   # expect 404
+      ```
+      A `200`/homepage here means the custom domain is serving a **stale
+      deployment** (old `_redirects`, no `404.html`) — STOP and resolve the
+      Pages deployment promotion before trusting any other check.
 - [ ] Admin **login works** against the staging worker (needs the §6.6
       bootstrap admin) — a successful login sets the `bb_admin_session`
       cookie host-only on `staging.busseyandbussey.com` and authenticated
