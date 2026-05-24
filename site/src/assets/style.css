@@ -2,11 +2,12 @@
   --bg: #ffffff;
   --surface: #ffffff;
   --ink: #0a0a0a;          /* near-black — primary text & hard borders */
-  --ink-soft: #222222;     /* body paragraph text */
-  --muted: #666666;
+  --ink-soft: #2a2a2a;     /* body paragraph text */
+  --muted: #6b6b66;
   --accent: #d40b1e;       /* sharp crimson — the brand red */
+  --accent-deep: #9e0816;  /* hover for crimson surfaces (send button) */
   --accent-text: #ffffff;
-  --hair: #e3e3df;         /* light hairline for subtle internal rules */
+  --hair: #e7e7e2;         /* light hairline for subtle internal rules */
   --font-display: 'Space Grotesk', sans-serif;
   --font-body: 'Instrument Sans', sans-serif;
   /* Legacy aliases so pre-existing rules keep resolving to the new palette. */
@@ -14,16 +15,20 @@
   --border: var(--hair);
   font-family: var(--font-body);
   font-size: 16px;
-  line-height: 1.55;
+  line-height: 1.6;
   color: var(--ink);
 }
 
 * { box-sizing: border-box; }
 
+html { scroll-behavior: smooth; }
+
 body {
   margin: 0;
   background: var(--bg);
   font-family: var(--font-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
 }
 
 h1, h2, h3, h4 { font-family: var(--font-display); }
@@ -51,64 +56,64 @@ a:hover { text-decoration: underline; }
 .small { font-size: 0.9rem; }
 .lead  { font-size: 1.15rem; color: var(--muted); }
 
-/* Header — stacked brand lockup left, nav right, hard 1px ink rule below. */
-.site-header {
-  background: var(--surface);
-  border-bottom: 1px solid var(--ink);
-}
-.site-header__inner {
+/* Header — full-bleed brand lockup left, nav right, hard 1.5px ink rule below. */
+.hdr {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
-  gap: 1.5rem;
-  padding-top: 18px;
-  padding-bottom: 18px;
+  align-items: flex-start;
+  padding: 22px 32px;
+  border-bottom: 1.5px solid var(--ink);
+  background: var(--surface);
 }
-.brand-lockup { display: block; line-height: 1.1; }
-.brand-lockup:hover { text-decoration: none; }
-.brand-name {
+.brand {
   display: block;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 20px;
-  letter-spacing: -0.02em;
+  font-size: 21px;
+  letter-spacing: -0.03em;
   color: var(--ink);
+  line-height: 1;
 }
-.brand-name .amp { color: var(--accent); }
-.brand-tagline {
+.brand:hover { text-decoration: none; }
+.brand .amp { color: var(--accent); }
+.brand .tag {
   display: block;
   font-family: var(--font-display);
   font-weight: 500;
-  font-size: 11.5px;
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
   color: var(--muted);
-  margin-top: 4px;
+  margin-top: 7px;
 }
-.site-nav {
+.nav {
   display: flex;
-  align-items: center;
+  gap: 22px;
   flex-wrap: wrap;
-  font-family: var(--font-body);
-  font-size: 13px;
+  font-size: 13.5px;
+  padding-top: 4px;
 }
-.site-nav a { color: var(--ink-soft); }
-.site-nav a:hover { color: var(--accent); text-decoration: none; }
-.site-nav a:not(:last-child)::after {
-  content: "·";
-  margin: 0 0.55rem;
-  color: var(--muted);
+.nav a {
+  color: var(--ink-soft);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+  transition: color 0.15s;
 }
-@media (max-width: 700px) {
-  .site-header__inner { flex-direction: column; align-items: flex-start; gap: 0.85rem; }
-  .site-nav { font-size: 12.5px; }
+.nav a:hover { color: var(--accent); text-decoration: none; }
+@media (max-width: 860px) {
+  .hdr { flex-direction: column; gap: 16px; padding: 20px 22px; }
+  .nav { gap: 14px; }
 }
 
-.site-footer {
-  margin-top: 4rem;
-  padding: 1rem 0;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
+.foot {
+  padding: 40px 32px;
+  border-top: 1.5px solid var(--ink);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
 }
 
 .hero { padding: 3rem 1.5rem; }
@@ -170,118 +175,142 @@ a:hover { text-decoration: underline; }
 .post h1 { margin-top: 0; }
 
 /* ---------------------------------------------------------------------------
-   Chat-first homepage — "white but sharp": display headline, crimson rotating
-   question, hard-framed chat, eyebrow-labelled sections, scrim image bands.
+   Chat-first homepage v3 — split-screen "stage" (pitch + live chat), scrimmed
+   image bands, assessment text section, provocative climax. Reproduces the
+   approved prototype (prompts/homepage-prototype.html).
    --------------------------------------------------------------------------- */
 
-.home-hero {
+.stage {
+  min-height: calc(100vh - 70px);
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+}
+.pitch {
+  padding: 6vh 4vw 4vh;
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
-  text-align: center;
-  padding: 56px 1.5rem 52px;
+  border-right: 1.5px solid var(--ink);
 }
-
-.hero-headline {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(2rem, 5vw, 2.6rem);
-  letter-spacing: -0.035em;
-  line-height: 1.04;
-  color: var(--ink);
-  max-width: 13em;
-  margin: 0 0 16px;
-}
-
-/* The rotating question — demoted from the headline: small + crimson. */
-.home-tagline {
-  font-family: var(--font-body);
-  font-size: 1.1rem;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  color: var(--accent);
-  margin: 0 0 30px;
-  min-height: 1.5em;
-  opacity: 1;
-  transition: opacity 0.5s ease;
-}
-
-.home-chat {
-  width: 100%;
-  max-width: 540px;
-  margin-bottom: 18px;
-}
-
-.encrypted {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  color: var(--muted);
-  font-size: 12.5px;
-}
-.encrypted svg { width: 14px; height: 14px; flex: none; }
-
-/* Uppercase crimson eyebrow above each section heading. */
-.eyebrow {
+.ey {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 12px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--accent);
-  margin: 0 0 16px;
+  margin: 0 0 26px;
 }
-.eyebrow--on-dark { color: #f0626c; }
-
-/* Readable prose sections (no image). */
-.section-text {
-  max-width: 660px;
-  margin: 0 auto;
-  padding: 52px 1.5rem;
-}
-.section-text h2 {
+.headline {
   font-family: var(--font-display);
-  font-weight: 600;
-  font-size: clamp(1.7rem, 3.5vw, 2rem);
-  letter-spacing: -0.03em;
-  line-height: 1.05;
+  font-weight: 700;
+  font-size: clamp(2.4rem, 4.4vw, 4rem);
+  line-height: 0.98;
+  letter-spacing: -0.04em;
   color: var(--ink);
-  margin: 0 0 1.1rem;
+  margin: 0;
 }
-.section-text h2::after {
-  content: "";
-  display: block;
-  width: 46px;
-  height: 3px;
-  background: var(--accent);
-  margin-top: 0.85rem;
-}
-.section-text h3 {
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-size: 1.25rem;
-  color: var(--ink);
-  margin: 2.5rem 0 0.75rem;
-}
-.section-text p {
-  font-family: var(--font-body);
-  font-size: 16px;
-  line-height: 1.7;
+.headline em { font-style: normal; color: var(--accent); }
+.sub {
+  font-size: 1.05rem;
+  line-height: 1.55;
   color: var(--ink-soft);
-  margin: 0 0 1.1rem;
+  max-width: 30ch;
+  margin: 28px 0 0;
 }
+.meta {
+  margin: 40px 0 0;
+  display: flex;
+  gap: 30px;
+  border-top: 1px solid var(--hair);
+  padding-top: 22px;
+  max-width: 34ch;
+}
+.meta > div { flex: 1; }
+.meta .n {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+}
+.meta .l { font-size: 12px; color: var(--muted); line-height: 1.35; margin-top: 3px; }
 
-/* Full-width image bands with a dark scrim and white overlay text. */
-.image-band {
-  position: relative;
-  width: 100%;
+/* Right column of the stage = the live chat. The static chrome (.talk-top,
+   .ask, .lock) lives in the page; the real widget renders its thread +
+   composer into #bb-chat-inline (see chat-widget.js inline mode). */
+.talk {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  min-height: 0;
+}
+.talk-top {
+  flex: 0 0 auto;
+  padding: 18px 26px;
+  border-bottom: 1px solid var(--hair);
   display: flex;
   align-items: center;
-  justify-content: center;
-  overflow: hidden;
+  gap: 9px;
 }
-.image-band img {
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(212, 11, 30, 0.5);
+  animation: pulse 2.4s infinite;
+}
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(212, 11, 30, 0.45); }
+  70% { box-shadow: 0 0 0 7px rgba(212, 11, 30, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(212, 11, 30, 0); }
+}
+.talk-top .who { font-family: var(--font-display); font-weight: 500; font-size: 13.5px; letter-spacing: -0.01em; }
+.talk-top .st { font-size: 12px; color: var(--muted); margin-left: auto; }
+.ask {
+  flex: 0 0 auto;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(1.15rem, 1.7vw, 1.45rem);
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--accent);
+  max-width: 24ch;
+  min-height: 1.3em;
+  margin: 0;
+  padding: 30px 26px 16px;
+  transition: opacity 0.5s;
+}
+#bb-chat-inline { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.lock {
+  flex: 0 0 auto;
+  padding: 0 26px 18px;
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Eyebrow on the dark image bands — lighter crimson reads on the photo. */
+.be {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #f0626c;
+  margin: 0 0 22px;
+}
+
+/* Problem band — real tools photo behind a strong scrim. */
+.band {
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+  padding: 11vh 4vw;
+}
+.band .band-bg {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -289,70 +318,123 @@ a:hover { text-decoration: underline; }
   object-fit: cover;
   z-index: 0;
 }
-.image-band::before {
+.band::before {
   content: "";
   position: absolute;
   inset: 0;
+  background: rgba(12, 12, 12, 0.72);
   z-index: 1;
 }
-.image-band--tools::before { background: rgba(10, 10, 10, 0.5); }
-.image-band--provocative::before { background: rgba(10, 10, 10, 0.58); }
-.image-band .band-inner {
-  position: relative;
-  z-index: 2;
-  max-width: 640px;
-  padding: 56px 30px;
-  text-align: center;
-  color: #fff;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
-}
-.image-band .band-inner h2,
-.image-band .band-inner h3 {
+.band .band-inner { position: relative; z-index: 2; }
+.band h2 {
   font-family: var(--font-display);
-  font-weight: 600;
-  color: #fff;
-  letter-spacing: -0.03em;
-  line-height: 1.06;
-  margin: 0 0 1rem;
+  font-weight: 700;
+  font-size: clamp(2rem, 3.6vw, 3rem);
+  letter-spacing: -0.035em;
+  line-height: 1;
+  max-width: 16ch;
+  margin: 0 0 26px;
 }
-.image-band .band-inner h2 {
-  font-size: clamp(1.7rem, 3.5vw, 2.1rem);
+.band p {
+  font-size: 1.08rem;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.82);
+  max-width: 54ch;
+  margin: 0 0 16px;
 }
-.image-band .band-inner p {
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 15.5px;
-  line-height: 1.65;
-  margin: 0 0 1.1rem;
-}
-.image-band .band-inner p:last-child { margin-bottom: 0; }
-.image-band--provocative .band-inner { padding: 72px 30px; }
-.image-band--provocative .band-inner h3 {
-  font-size: clamp(1.9rem, 4.5vw, 2.6rem);
-}
+.band p:last-child { margin-bottom: 0; }
 
-@media (max-width: 600px) {
-  .image-band .band-inner { padding: 44px 20px; }
-  .image-band--provocative .band-inner { padding: 56px 20px; }
-}
-
-/* Close — a bordered pill that fills crimson on hover; scrolls to the chat. */
-.home-close {
-  text-align: center;
-  padding: 52px 1.5rem 64px;
-}
-.home-close a {
-  display: inline-block;
+/* Assessment text section. */
+.sec { padding: 11vh 4vw; max-width: 780px; margin: 0 auto; }
+.se {
   font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 1.05rem;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 20px;
+}
+.sec h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.9rem, 3.2vw, 2.7rem);
+  letter-spacing: -0.035em;
+  line-height: 1.02;
   color: var(--ink);
-  border: 1px solid var(--ink);
-  border-radius: 999px;
-  padding: 0.7rem 1.4rem;
+  margin: 0;
 }
-.home-close a:hover {
-  background: var(--accent);
-  border-color: var(--accent);
+.sec .rule { width: 52px; height: 3px; background: var(--accent); margin: 20px 0 26px; }
+.sec h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin: 42px 0 12px;
+}
+.sec p { font-size: 1.06rem; line-height: 1.7; color: var(--ink-soft); margin: 0 0 16px; }
+.sec p:last-child { margin-bottom: 0; }
+
+/* Climax — real provocative photo behind a heavy scrim, centered. */
+.climax {
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+  padding: 14vh 4vw;
+  text-align: center;
+}
+.climax .climax-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+.climax::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 8, 8, 0.66);
+  z-index: 1;
+}
+.climax .climax-inner { position: relative; z-index: 2; }
+.climax .be { color: #f0626c; }
+.climax h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2.2rem, 5vw, 3.8rem);
+  letter-spacing: -0.04em;
+  line-height: 0.98;
+  max-width: 18ch;
+  margin: 0 auto 30px;
+}
+.climax p {
+  font-size: 1.1rem;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.8);
+  max-width: 56ch;
+  margin: 0 auto 18px;
+}
+.cta {
+  display: inline-block;
+  margin-top: 34px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
   color: #fff;
   text-decoration: none;
+  border: 1.5px solid #fff;
+  padding: 15px 30px;
+  border-radius: 11px;
+  transition: all 0.15s;
+}
+.cta:hover { background: #fff; color: #0a0a0a; text-decoration: none; }
+
+@media (max-width: 860px) {
+  .stage { grid-template-columns: 1fr; min-height: auto; }
+  .pitch { border-right: none; border-bottom: 1.5px solid var(--ink); padding: 7vh 6vw 5vh; }
+  .talk { min-height: 70vh; }
 }

@@ -46,9 +46,14 @@
           '<button id="bb-chat-close" type="button" aria-label="Close">×</button>' +
         '</header>';
     var placeholder = state.inline ? '' : 'Type your message…';
+    // Inline mode shows the "begin" cue as one unit with the composer.
+    var beginHtml = state.inline
+      ? '<div class="bb-begin"><span class="bb-begin-arr">↓</span> Begin here. Speak with our Automated Intelligence.</div>'
+      : '';
     panel.innerHTML =
       headerHtml +
       '<div id="bb-chat-messages" class="bb-chat-messages" aria-live="polite"></div>' +
+      beginHtml +
       '<form id="bb-chat-form">' +
         '<textarea id="bb-chat-input" rows="2" placeholder="' + placeholder + '" maxlength="3000"></textarea>' +
         '<button id="bb-chat-send" type="submit" aria-label="Send">↑</button>' +
@@ -238,18 +243,28 @@ body.bb-chat-open #bb-chat-bubble { display: none; }\
 #bb-chat-panel { display: none; position: fixed; right: 1.5rem; bottom: 1.5rem; width: 360px; max-width: calc(100vw - 1rem); height: 520px; max-height: calc(100vh - 2rem); background: #fff; border: 1px solid #e5e5e2; border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.18); flex-direction: column; z-index: 1000; overflow: hidden; }\
 body.bb-chat-open #bb-chat-panel { display: flex; }\
 @media (max-width: 600px) { body.bb-chat-open #bb-chat-panel { right: 0; bottom: 0; width: 100%; height: 100%; max-height: 100%; max-width: 100%; border-radius: 0; border: none; } }\
-#bb-chat-panel.bb-chat-panel--inline { display: flex; position: static; right: auto; bottom: auto; width: 100%; max-width: 100%; height: 460px; max-height: 70vh; background: #fff; border: 1.5px solid #0a0a0a; border-radius: 14px; box-shadow: 0 6px 24px rgba(0,0,0,0.10); }\
 #bb-chat-panel header { padding: 0.75rem 1rem; border-bottom: 1px solid #e5e5e2; display: flex; justify-content: space-between; align-items: center; }\
 #bb-chat-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6b6b66; line-height: 1; }\
 .bb-chat-messages { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }\
-.bb-msg { padding: 0.5rem 0.75rem; max-width: 85%; white-space: pre-wrap; line-height: 1.4; }\
-.bb-msg-assistant { background: #f4f4f2; color: #0a0a0a; align-self: flex-start; border-radius: 13px 13px 13px 3px; }\
-.bb-msg-user { background: #d40b1e; color: #fff; align-self: flex-end; border-radius: 13px 13px 3px 13px; }\
+.bb-msg { padding: 12px 15px; max-width: 82%; white-space: pre-wrap; line-height: 1.5; font-size: 14.5px; }\
+.bb-msg-assistant { background: #f4f4f1; color: #0a0a0a; align-self: flex-start; border-radius: 4px 14px 14px 14px; }\
+.bb-msg-user { background: #d40b1e; color: #fff; align-self: flex-end; border-radius: 14px 14px 4px 14px; }\
 #bb-chat-form { display: flex; padding: 0.5rem; gap: 0.5rem; align-items: flex-end; border-top: 1px solid #e5e5e2; }\
 #bb-chat-input { flex: 1; background: #fff; border: 1px solid #cfcfca; border-radius: 9px; padding: 0.5rem; font: inherit; resize: none; }\
 #bb-chat-input:focus { outline: 2px solid #d40b1e; outline-offset: -1px; }\
 #bb-chat-send { flex: none; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; background: #d40b1e; color: #fff; border: none; border-radius: 9px; font-size: 1.2rem; line-height: 1; cursor: pointer; }\
 #bb-chat-send:disabled { opacity: 0.5; cursor: not-allowed; }\
+\
+/* Inline mode (homepage): frameless, fills the .talk column; the prototype chat panel. */\
+#bb-chat-panel.bb-chat-panel--inline { display: flex; position: static; right: auto; bottom: auto; flex-direction: column; flex: 1 1 auto; min-height: 0; width: 100%; max-width: 100%; height: auto; max-height: none; background: transparent; border: none; border-radius: 0; box-shadow: none; overflow: visible; }\
+.bb-chat-panel--inline #bb-chat-messages { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding: 0 26px 30px; }\
+.bb-chat-panel--inline .bb-begin { padding: 14px 18px 0; display: flex; align-items: center; gap: 8px; font-family: "Space Grotesk", sans-serif; font-weight: 500; font-size: 13px; letter-spacing: -0.01em; color: #0a0a0a; border-top: 1.5px solid #0a0a0a; }\
+.bb-chat-panel--inline .bb-begin-arr { color: #d40b1e; font-size: 15px; }\
+.bb-chat-panel--inline #bb-chat-form { padding: 10px 18px 16px; gap: 10px; align-items: flex-end; border-top: none; }\
+.bb-chat-panel--inline #bb-chat-input { height: 50px; border: 1.5px solid #d8d8d2; border-radius: 11px; padding: 13px 15px; font-size: 15px; }\
+.bb-chat-panel--inline #bb-chat-input:focus { outline: none; border-color: #0a0a0a; }\
+.bb-chat-panel--inline #bb-chat-send { width: 50px; height: 50px; border-radius: 11px; font-size: 22px; }\
+.bb-chat-panel--inline #bb-chat-send:hover { background: #9e0816; }\
 ';
   var style = document.createElement('style');
   style.textContent = css;
