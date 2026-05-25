@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bussey & Bussey</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Instrument+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0a0a0a; --ink-soft:#2a2a2a; --muted:#6b6b66; --paper:#ffffff;
+    --accent:#d40b1e; --accent-deep:#9e0816; --hair:#e7e7e2; --wash:#f6f6f3;
+    --display:'Space Grotesk',sans-serif; --body:'Instrument Sans',sans-serif;
+    --max:1140px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{font-family:var(--body);color:var(--ink);background:var(--paper);line-height:1.65;-webkit-font-smoothing:antialiased;}
+  .wrap{max-width:var(--max);margin:0 auto;padding:0 28px;}
+
+  .hdr{border-bottom:1px solid var(--hair);position:sticky;top:0;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);z-index:50;}
+  .hdr .wrap{display:flex;justify-content:space-between;align-items:center;padding:18px 28px;}
+  .brand{font-family:var(--display);font-weight:700;font-size:19px;letter-spacing:-0.03em;line-height:1;}
+  .brand .amp{color:var(--accent);}
+  .brand .tag{display:block;font-family:var(--display);font-weight:500;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:var(--muted);margin-top:5px;}
+  .nav{display:flex;gap:24px;font-size:14px;}
+  .nav a{color:var(--ink-soft);text-decoration:none;transition:color .15s;}
+  .nav a:hover{color:var(--accent);}
+
+  .hero{padding:88px 0 72px;}
+  .hero .wrap{display:grid;grid-template-columns:1fr 400px;gap:56px;align-items:center;}
+  .ey{font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:0.15em;text-transform:uppercase;color:var(--accent);margin-bottom:20px;}
+  .h1{font-family:var(--display);font-weight:700;font-size:clamp(2.1rem,3.6vw,3.1rem);line-height:1.02;letter-spacing:-0.035em;}
+  .h1 em{font-style:normal;color:var(--accent);}
+  .hero p.lead{font-size:1.1rem;color:var(--ink-soft);margin-top:22px;max-width:42ch;}
+  .stats{display:flex;gap:36px;margin-top:34px;}
+  .stats .n{font-family:var(--display);font-weight:700;font-size:1.4rem;letter-spacing:-0.02em;}
+  .stats .l{font-size:12.5px;color:var(--muted);line-height:1.4;margin-top:2px;max-width:18ch;}
+
+  .chat{border:1.5px solid var(--ink);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;height:440px;box-shadow:0 18px 40px -22px rgba(0,0,0,.4);}
+  .chat-top{display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid var(--hair);}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 0 rgba(212,11,30,.5);animation:pulse 2.4s infinite;}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(212,11,30,.45);}70%{box-shadow:0 0 0 6px rgba(212,11,30,0);}100%{box-shadow:0 0 0 0 rgba(212,11,30,0);}}
+  .chat-top .who{font-family:var(--display);font-weight:500;font-size:13px;}
+  .chat-top .st{font-size:11.5px;color:var(--muted);margin-left:auto;}
+  .thread{flex:1;min-height:0;overflow-y:auto;padding:18px 16px;display:flex;flex-direction:column;gap:11px;}
+  .bub{max-width:88%;padding:10px 13px;font-size:13.5px;line-height:1.45;}
+  .bub.a{align-self:flex-start;background:var(--wash);border-radius:3px 12px 12px 12px;}
+  .bub.u{align-self:flex-end;background:var(--accent);color:#fff;border-radius:12px 12px 3px 12px;}
+  .begin{padding:11px 14px 0;font-family:var(--display);font-weight:500;font-size:12px;color:var(--ink);display:flex;align-items:center;gap:6px;}
+  .begin .arr{color:var(--accent);}
+  .composer{display:flex;gap:8px;align-items:flex-end;padding:9px 12px 12px;border-top:1px solid var(--hair);}
+  .composer input{flex:1;border:1.5px solid #d8d8d2;border-radius:10px;padding:11px 13px;font-family:var(--body);font-size:14px;outline:none;}
+  .composer input:focus{border-color:var(--ink);}
+  .send{width:42px;height:42px;flex:none;border:none;border-radius:10px;background:var(--accent);color:#fff;font-size:19px;cursor:pointer;}
+  .send:hover{background:var(--accent-deep);}
+  .lock{font-size:11.5px;color:var(--muted);padding:8px 16px 0;display:flex;gap:5px;align-items:center;}
+
+  .section{padding:84px 0;}
+  .section.wash{background:var(--wash);}
+  .se{font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:0.15em;text-transform:uppercase;color:var(--accent);margin-bottom:18px;}
+  .h2{font-family:var(--display);font-weight:700;font-size:clamp(1.8rem,3vw,2.4rem);letter-spacing:-0.03em;line-height:1.05;}
+  .rule{width:50px;height:3px;background:var(--accent);margin:18px 0 24px;}
+  .section p{font-size:1.05rem;color:var(--ink-soft);margin-bottom:15px;max-width:60ch;}
+  .section p:last-child{margin-bottom:0;}
+  .h3{font-family:var(--display);font-weight:500;font-size:1.3rem;letter-spacing:-0.02em;margin:36px 0 10px;}
+  .narrow{max-width:760px;}
+
+  .band{position:relative;padding:96px 0;color:#fff;overflow:hidden;background:#161616;}
+  .band::before{content:"";position:absolute;inset:0;background:url('https://res.cloudinary.com/dxzw1zwez/image/upload/c_fill,w_2000,q_auto,f_auto/v1779656080/tools_ixpkkk.jpg') center/cover;opacity:1;}
+  .band::after{content:"";position:absolute;inset:0;background:rgba(12,12,12,.72);}
+  .band .wrap{position:relative;z-index:2;}
+  .band .se{color:#f0626c;}
+  .band .h2{color:#fff;}
+  .band p{color:rgba(255,255,255,.85);}
+
+  .climax{position:relative;padding:104px 0;color:#fff;text-align:center;overflow:hidden;background:#0a0a0a;}
+  .climax::before{content:"";position:absolute;inset:0;background:url('https://res.cloudinary.com/dxzw1zwez/image/upload/c_fill,w_2000,q_auto,f_auto/v1779656075/provocative_moasyf.jpg') center/cover;}
+  .climax::after{content:"";position:absolute;inset:0;background:rgba(8,8,8,.66);}
+  .climax .wrap{position:relative;z-index:2;max-width:760px;}
+  .climax .se{color:#f0626c;}
+  .climax .h2{color:#fff;}
+  .climax p{color:rgba(255,255,255,.85);margin-left:auto;margin-right:auto;}
+  .cta{display:inline-block;margin-top:30px;font-family:var(--display);font-weight:700;font-size:15px;color:#fff;text-decoration:none;border:1.5px solid #fff;padding:14px 28px;border-radius:11px;transition:all .15s;}
+  .cta:hover{background:#fff;color:#0a0a0a;}
+
+  .foot{border-top:1px solid var(--hair);}
+  .foot .wrap{display:flex;justify-content:space-between;padding:34px 28px;font-size:13px;color:var(--muted);}
+
+  @media(max-width:840px){
+    .hero .wrap{grid-template-columns:1fr;gap:36px;}
+    .chat{height:400px;}
+    .hdr .wrap{flex-direction:column;gap:12px;align-items:flex-start;}
+    .nav{flex-wrap:wrap;gap:16px;}
+    .stats{gap:24px;}
+  }
+</style>
+</head>
+<body>
+
+<header class="hdr"><div class="wrap">
+  <div class="brand">Bussey <span class="amp">&amp;</span> Bussey<span class="tag">Operations &amp; AI for service businesses</span></div>
+  <nav class="nav"><a href="#">Services</a><a href="#">Industries</a><a href="#">Articles</a><a href="#">Blog</a><a href="#">About</a><a href="#">Contact</a></nav>
+</div></header>
+
+<section class="hero"><div class="wrap">
+  <div class="hero-copy">
+    <div class="ey">The problem you don't have time to fix</div>
+    <h1 class="h1">We find what's <em>breaking</em> in your business — and build the fix.</h1>
+    <p class="lead">No forms. No brochures. Tell our agent what's wrong, and we'll get to the bottom of it.</p>
+    <div class="stats">
+      <div><div class="n">45 min</div><div class="l">Per Assessment session — at no charge to you.</div></div>
+      <div><div class="n">$0</div><div class="l">Until we've designed the fix and you've seen it.</div></div>
+    </div>
+  </div>
+
+  <div class="chat">
+    <div class="chat-top"><span class="dot"></span><span class="who">Bussey &amp; Bussey</span><span class="st">online</span></div>
+    <div class="thread">
+      <div class="bub a">Welcome to Bussey and Bussey. What's the part of your business that keeps breaking?</div>
+      <div class="bub u">Leads come in and half never get called back.</div>
+      <div class="bub a">So you're paying to generate leads and losing them at the door. How are they coming in right now?</div>
+    </div>
+    <div class="begin"><span class="arr">&#8595;</span> Begin here. Speak with our Automated Intelligence.</div>
+    <div class="composer"><input type="text" placeholder="" aria-label="Message" /><button class="send" aria-label="Send">&#8593;</button></div>
+    <div class="lock"><span>&#128274;</span> Encrypted and confidential</div>
+    <div style="height:12px"></div>
+  </div>
+</div></section>
+
+<section class="band"><div class="wrap">
+  <div class="se">The problem</div>
+  <h2 class="h2">You're consumed by the work</h2>
+  <div style="max-width:56ch">
+    <p>The job in front of you, the client who needs an answer now, the fire that started this morning. So you handle it — by hand, again, like last week and the week before.</p>
+    <p>Some days the work isn't the fire. Some days you have to work on the firetruck, so it's ready when the fire comes. Some days you install the smoke alarm, so the fire doesn't start at all. That's the work that actually changes things — and it's the work that never gets done, because you're too busy surviving the week to build the thing that would end the fight.</p>
+    <p>It's your job to see it before it happens. But being ahead means doing more work, and you're already past full. That's the trap: the thinking that would get you out is the thing you have no time to do.</p>
+  </div>
+</div></section>
+
+<section class="section"><div class="wrap narrow">
+  <div class="se">The Assessment</div>
+  <h2 class="h2">We don't do free</h2>
+  <div class="rule"></div>
+  <p>Free means you have time to give away. Our time is valuable — and so is yours. If you're looking for something for nothing, we don't have anything for you.</p>
+  <p>But if you're willing to invest the one resource you can't get back — your time — then we'll meet you there. You bring the time and the seriousness. We bring the work, at no cost to you, long before anyone talks about money.</p>
+  <h3 class="h3">How the Assessment works</h3>
+  <p>It starts with a conversation. A set time, forty-five minutes — not a sales call dressed up as a favor. The first session exists to expose the real problem, which is almost never the one you came in naming. Most engagements don't stop at one; four to eight sessions is common, because digging into how a business actually runs takes more than one sitting.</p>
+  <h3 class="h3">Good tools pay for themselves</h3>
+  <p>We don't build tools. We build effective solutions. A home health agency we worked with was drowning in compliance — the state requires documents on file and proof of due diligence on every hire. We built them automated intelligence backed by real tracking: an interface that kept them compliant and gave their staff a clear path. The tool paid for itself in time, in stress, and in audits that stopped being a crisis.</p>
+</div></section>
+
+<section class="section wash"><div class="wrap narrow">
+  <div class="se">Who we are</div>
+  <h2 class="h2">Built by operators, not advisors</h2>
+  <div class="rule"></div>
+  <p>Before Bussey and Bussey, we built White Shovel — a landscape design firm — and the software behind it. We built the systems and the design tools ourselves, and they turned an ordinary salesperson into a capable designer. The efficiency was real enough that we could hand homeowners a finished design for free and still win the work. Then we sold it.</p>
+  <p>We've spent the years since building software and tools for service companies across industries. Research is the foundation of good development, and ours is solid. We're often surprised by what people assume can't be done with AI or software — and rarely surprised by what turns out to be possible once someone digs. We find the solutions. We bring them to you.</p>
+</div></section>
+
+<section class="climax"><div class="wrap">
+  <div class="se">The moment</div>
+  <h2 class="h2">The market just opened. Are you ready?</h2>
+  <div class="rule" style="margin-left:auto;margin-right:auto;"></div>
+  <p>The large companies are using AI to cut their workforce — and in doing so, they're handing the open market back to small business. The talent is available. The tools that used to belong only to the big players are within reach for the first time.</p>
+  <p>But reach isn't the same as ready. Do you have the systems to absorb that opportunity? The tools to compete with operations ten times your size? We exist to make the answer yes.</p>
+  <a href="#" class="cta" onclick="window.scrollTo({top:0,behavior:'smooth'});return false;">Start the conversation &#8594;</a>
+</div></section>
+
+<footer class="foot"><div class="wrap">
+  <span>Bussey &amp; Bussey</span><span>Operations &amp; AI for service businesses</span>
+</div></footer>
+
+</body>
+</html>
