@@ -369,3 +369,81 @@ a:hover { text-decoration: underline; }
   .nav { flex-wrap: wrap; gap: 16px; }
   .stats { gap: 24px; }
 }
+
+/* ---------------------------------------------------------------------------
+   Services page — problem-framed, built on the same locked tokens as the
+   homepage v4 block above: compact single-column hero → five problem→fix rows
+   → the shared tools image band → a contact section that IS the chat card
+   (the same .chat component, one #bb-chat-inline mount). Reuses .wrap, .ey,
+   .h1, .lead, .section, .se, .h2, .band and .chat; only the layout-specific
+   pieces below are new.
+   --------------------------------------------------------------------------- */
+
+/* Compact hero — single column, no chat card, no image. Generous top padding,
+   tighter bottom so it leads into the problem rows. */
+.hero-lite { padding: 84px 0 8px; }
+.hero-lite .h1 { max-width: 20ch; }
+.hero-lite p.lead {
+  font-size: 1.15rem;
+  color: var(--ink-soft);
+  margin: 24px 0 0;
+  max-width: 62ch;
+}
+
+/* Problem→fix rows — editorial two-column rows (crimson problem label left,
+   sharp heading + fix paragraph right), divided by hairlines. Five items, no
+   odd-card gap. Stacks to a single column on mobile. */
+.problems .wrap { padding-top: 0; }
+.problem {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 44px;
+  padding: 42px 0;
+  border-top: 1px solid var(--hair);
+}
+.problem:last-child { border-bottom: 1px solid var(--hair); }
+.problem-label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding-top: 6px;
+}
+.problem-h {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.35rem, 2vw, 1.7rem);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin: 0 0 14px;
+}
+.problem-body p { font-size: 1.05rem; color: var(--ink-soft); margin: 0; max-width: 62ch; }
+
+/* Contact section — the chat IS the contact method. Heading + subline + the
+   shared .chat card, centered as a real contact section. */
+.contact { text-align: center; }
+.contact .se,
+.contact .h2 { /* inherit display/crimson tokens; centering comes from .contact */ }
+.contact-sub {
+  font-size: 1.1rem;
+  color: var(--ink-soft);
+  margin: 16px auto 0;
+  max-width: 52ch;
+}
+/* Bound the shared .chat card's width and center it (the card supplies its own
+   fixed 440px height + bordered styling from the homepage block above). */
+.contact-chat {
+  width: 100%;
+  max-width: 420px;
+  margin: 36px auto 0;
+  text-align: left;
+}
+
+@media (max-width: 840px) {
+  .hero-lite { padding: 60px 0 4px; }
+  .problem { grid-template-columns: 1fr; gap: 10px; padding: 30px 0; }
+  .problem-label { padding-top: 0; }
+  .contact-chat { max-width: 100%; }
+}
