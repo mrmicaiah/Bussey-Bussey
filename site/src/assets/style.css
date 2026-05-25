@@ -8,7 +8,8 @@
   --accent-deep: #9e0816;  /* hover for crimson surfaces (send button) */
   --accent-text: #ffffff;
   --hair: #e7e7e2;         /* light hairline for subtle internal rules */
-  --header-h: 85px;        /* real lockup header height — drives the stage fill */
+  --wash: #f6f6f3;         /* washed "who we are" section background */
+  --max: 1140px;           /* centered content column max-width */
   --font-display: 'Space Grotesk', sans-serif;
   --font-body: 'Instrument Sans', sans-serif;
   /* Legacy aliases so pre-existing rules keep resolving to the new palette. */
@@ -57,23 +58,32 @@ a:hover { text-decoration: underline; }
 .small { font-size: 0.9rem; }
 .lead  { font-size: 1.15rem; color: var(--muted); }
 
-/* Header — full-bleed brand lockup left, nav right, hard 1.5px ink rule below. */
+/* Centered content column — caps page content at 1140px with side gutters.
+   Image bands go full-bleed; their inner .wrap stays capped at this width. */
+.wrap { max-width: var(--max); margin: 0 auto; padding: 0 28px; }
+
+/* Header — sticky brand lockup left, nav right, hairline rule + backdrop blur. */
 .hdr {
+  border-bottom: 1px solid var(--hair);
+  position: sticky;
+  top: 0;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  z-index: 50;
+}
+.hdr .wrap {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  padding: 22px 32px;
-  border-bottom: 1.5px solid var(--ink);
-  background: var(--surface);
+  align-items: center;
+  padding: 18px 28px;
 }
 .brand {
-  display: block;
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 21px;
+  font-size: 19px;
   letter-spacing: -0.03em;
-  color: var(--ink);
   line-height: 1;
+  color: var(--ink);
 }
 .brand:hover { text-decoration: none; }
 .brand .amp { color: var(--accent); }
@@ -81,19 +91,13 @@ a:hover { text-decoration: underline; }
   display: block;
   font-family: var(--font-display);
   font-weight: 500;
-  font-size: 10.5px;
-  letter-spacing: 0.18em;
+  font-size: 10px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--muted);
-  margin-top: 7px;
+  margin-top: 5px;
 }
-.nav {
-  display: flex;
-  gap: 22px;
-  flex-wrap: wrap;
-  font-size: 13.5px;
-  padding-top: 4px;
-}
+.nav { display: flex; gap: 24px; font-size: 14px; }
 .nav a {
   color: var(--ink-soft);
   text-decoration: none;
@@ -101,25 +105,15 @@ a:hover { text-decoration: underline; }
   transition: color 0.15s;
 }
 .nav a:hover { color: var(--accent); text-decoration: none; }
-@media (max-width: 860px) {
-  .hdr { flex-direction: column; gap: 16px; padding: 20px 22px; }
-  .nav { gap: 14px; }
-}
 
-.foot {
-  padding: 40px 32px;
-  border-top: 1.5px solid var(--ink);
+.foot { border-top: 1px solid var(--hair); }
+.foot .wrap {
   display: flex;
   justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 8px;
+  padding: 34px 28px;
   font-size: 13px;
   color: var(--muted);
 }
-
-.hero { padding: 3rem 1.5rem; }
-.hero h1 { font-size: 2.25rem; line-height: 1.1; margin: 0 0 1rem; }
-.hero p.lead { max-width: 38em; }
 
 .btn {
   display: inline-block;
@@ -176,88 +170,76 @@ a:hover { text-decoration: underline; }
 .post h1 { margin-top: 0; }
 
 /* ---------------------------------------------------------------------------
-   Chat-first homepage v3 — split-screen "stage" (pitch + live chat), scrimmed
-   image bands, assessment text section, provocative climax. Reproduces the
-   approved prototype (prompts/homepage-prototype.html).
+   Homepage v4 — conventional landing page reproducing the approved prototype
+   (prompts/landing-prototype.html): sticky header → hero (pitch copy + a TIGHT
+   bounded chat card) → dark tools image band (the problem) → Assessment text
+   section → washed "who we are" section → provocative image climax + CTA →
+   footer. All page content is centered in the 1140px .wrap column; only the
+   image bands go full-bleed (background), with their inner .wrap still capped.
    --------------------------------------------------------------------------- */
 
-.stage {
-  min-height: calc(100svh - var(--header-h));
+/* Hero — pitch copy left (1fr), fixed 400px chat card right. */
+.hero { padding: 88px 0 72px; }
+.hero .wrap {
   display: grid;
-  grid-template-columns: 1.05fr 1fr;
-  /* Bound the single row to the stage height (min 0) so a tall chat thread
-     scrolls inside the .talk column instead of growing the whole stage. */
-  grid-template-rows: minmax(0, 1fr);
-}
-.pitch {
-  padding: 6vh 4vw 4vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  border-right: 1.5px solid var(--ink);
+  grid-template-columns: 1fr 400px;
+  gap: 56px;
+  align-items: center;
 }
 .ey {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 12px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
   color: var(--accent);
-  margin: 0 0 26px;
+  margin: 0 0 20px;
 }
-.headline {
+.h1 {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(2.4rem, 4.4vw, 4rem);
-  line-height: 0.98;
-  letter-spacing: -0.04em;
-  color: var(--ink);
+  font-size: clamp(2.1rem, 3.6vw, 3.1rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
   margin: 0;
 }
-.headline em { font-style: normal; color: var(--accent); }
-.sub {
-  font-size: 1.05rem;
-  line-height: 1.55;
+.h1 em { font-style: normal; color: var(--accent); }
+.hero p.lead {
+  font-size: 1.1rem;
   color: var(--ink-soft);
-  max-width: 30ch;
-  margin: 28px 0 0;
+  margin: 22px 0 0;
+  max-width: 42ch;
 }
-.meta {
-  margin: 40px 0 0;
-  display: flex;
-  gap: 30px;
-  border-top: 1px solid var(--hair);
-  padding-top: 22px;
-  max-width: 34ch;
-}
-.meta > div { flex: 1; }
-.meta .n {
+.stats { display: flex; gap: 36px; margin: 34px 0 0; }
+.stats .n {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   letter-spacing: -0.02em;
 }
-.meta .l { font-size: 12px; color: var(--muted); line-height: 1.35; margin-top: 3px; }
-/* The mobile copy of the stats (rendered after the chat) is hidden on desktop. */
-.meta--mobile { display: none; }
+.stats .l { font-size: 12.5px; color: var(--muted); line-height: 1.4; margin-top: 2px; max-width: 18ch; }
 
-/* Right column of the stage = the live chat. The static chrome (.talk-top,
-   .ask, .lock) lives in the page; the real widget renders its thread +
-   composer into #bb-chat-inline (see chat-widget.js inline mode). */
-.talk {
+/* The chat card — a SMALL bounded card (400 × 440), NOT a full panel. The
+   static status bar + lock line live in index.njk; the live widget renders its
+   thread, begin-cue and composer into #bb-chat-inline (chat-widget.js inline
+   mode). The card's FIXED 440px height bounds the chat: only the thread
+   scrolls, the composer stays pinned. (Do NOT reintroduce 460px/70vh/100svh.) */
+.chat {
+  border: 1.5px solid var(--ink);
+  border-radius: 16px;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: var(--surface);
-  height: 100%;
-  min-height: 0;
+  height: 440px;
+  box-shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.4);
 }
-.talk-top {
+.chat-top {
   flex: 0 0 auto;
-  padding: 18px 26px;
-  border-bottom: 1px solid var(--hair);
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--hair);
 }
 .dot {
   width: 7px;
@@ -269,53 +251,62 @@ a:hover { text-decoration: underline; }
 }
 @keyframes pulse {
   0% { box-shadow: 0 0 0 0 rgba(212, 11, 30, 0.45); }
-  70% { box-shadow: 0 0 0 7px rgba(212, 11, 30, 0); }
+  70% { box-shadow: 0 0 0 6px rgba(212, 11, 30, 0); }
   100% { box-shadow: 0 0 0 0 rgba(212, 11, 30, 0); }
 }
-.talk-top .who { font-family: var(--font-display); font-weight: 500; font-size: 13.5px; letter-spacing: -0.01em; }
-.talk-top .st { font-size: 12px; color: var(--muted); margin-left: auto; }
-.ask {
-  flex: 0 0 auto;
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-size: clamp(1.15rem, 1.7vw, 1.45rem);
-  letter-spacing: -0.02em;
-  line-height: 1.25;
-  color: var(--accent);
-  max-width: 24ch;
-  min-height: 1.3em;
-  margin: 0;
-  padding: 30px 26px 16px;
-  transition: opacity 0.5s;
-}
-#bb-chat-inline { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+.chat-top .who { font-family: var(--font-display); font-weight: 500; font-size: 13px; }
+.chat-top .st { font-size: 11.5px; color: var(--muted); margin-left: auto; }
+/* The live widget fills the space between the status bar and the lock line. */
+.chat #bb-chat-inline { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .lock {
   flex: 0 0 auto;
-  padding: 0 26px 18px;
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--muted);
+  padding: 8px 16px 12px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
-/* Eyebrow on the dark image bands — lighter crimson reads on the photo. */
-.be {
+/* Text sections — Assessment ("We don't do free"), washed "who we are". */
+.section { padding: 84px 0; }
+.section.wash { background: var(--wash); }
+.se {
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 12px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: #f0626c;
-  margin: 0 0 22px;
+  color: var(--accent);
+  margin: 0 0 18px;
 }
+.h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  margin: 0;
+}
+.rule { width: 50px; height: 3px; background: var(--accent); margin: 18px 0 24px; }
+.section p { font-size: 1.05rem; color: var(--ink-soft); margin: 0 0 15px; max-width: 60ch; }
+.section p:last-child { margin-bottom: 0; }
+.h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.3rem;
+  letter-spacing: -0.02em;
+  margin: 36px 0 10px;
+}
+.narrow { max-width: 760px; }
 
-/* Problem band — real tools photo behind a strong scrim. */
+/* Problem band — full-bleed tools photo behind a strong scrim, white text. */
 .band {
   position: relative;
   overflow: hidden;
   color: #fff;
-  padding: 11vh 4vw;
+  background: #161616;
+  padding: 96px 0;
 }
 .band .band-bg {
   position: absolute;
@@ -325,71 +316,20 @@ a:hover { text-decoration: underline; }
   object-fit: cover;
   z-index: 0;
 }
-.band::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: rgba(12, 12, 12, 0.72);
-  z-index: 1;
-}
-.band .band-inner { position: relative; z-index: 2; }
-.band h2 {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(2rem, 3.6vw, 3rem);
-  letter-spacing: -0.035em;
-  line-height: 1;
-  max-width: 16ch;
-  margin: 0 0 26px;
-}
-.band p {
-  font-size: 1.08rem;
-  line-height: 1.7;
-  color: rgba(255, 255, 255, 0.82);
-  max-width: 54ch;
-  margin: 0 0 16px;
-}
-.band p:last-child { margin-bottom: 0; }
+.band::after { content: ""; position: absolute; inset: 0; background: rgba(12, 12, 12, 0.72); z-index: 1; }
+.band .wrap { position: relative; z-index: 2; }
+.band .se { color: #f0626c; }
+.band .h2 { color: #fff; }
+.band p { color: rgba(255, 255, 255, 0.85); margin: 0; }
 
-/* Assessment text section. */
-.sec { padding: 11vh 4vw; max-width: 780px; margin: 0 auto; }
-.se {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin: 0 0 20px;
-}
-.sec h2 {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(1.9rem, 3.2vw, 2.7rem);
-  letter-spacing: -0.035em;
-  line-height: 1.02;
-  color: var(--ink);
-  margin: 0;
-}
-.sec .rule { width: 52px; height: 3px; background: var(--accent); margin: 20px 0 26px; }
-.sec h3 {
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-size: 1.35rem;
-  letter-spacing: -0.02em;
-  color: var(--ink);
-  margin: 42px 0 12px;
-}
-.sec p { font-size: 1.06rem; line-height: 1.7; color: var(--ink-soft); margin: 0 0 16px; }
-.sec p:last-child { margin-bottom: 0; }
-
-/* Climax — real provocative photo behind a heavy scrim, centered. */
+/* Climax — full-bleed provocative photo behind a heavy scrim, centered. */
 .climax {
   position: relative;
   overflow: hidden;
   color: #fff;
-  padding: 14vh 4vw;
   text-align: center;
+  background: #0a0a0a;
+  padding: 104px 0;
 }
 .climax .climax-bg {
   position: absolute;
@@ -399,73 +339,33 @@ a:hover { text-decoration: underline; }
   object-fit: cover;
   z-index: 0;
 }
-.climax::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: rgba(8, 8, 8, 0.66);
-  z-index: 1;
-}
-.climax .climax-inner { position: relative; z-index: 2; }
-.climax .be { color: #f0626c; }
-.climax h2 {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(2.2rem, 5vw, 3.8rem);
-  letter-spacing: -0.04em;
-  line-height: 0.98;
-  max-width: 18ch;
-  margin: 0 auto 30px;
-}
-.climax p {
-  font-size: 1.1rem;
-  line-height: 1.7;
-  color: rgba(255, 255, 255, 0.8);
-  max-width: 56ch;
-  margin: 0 auto 18px;
-}
+.climax::after { content: ""; position: absolute; inset: 0; background: rgba(8, 8, 8, 0.66); z-index: 1; }
+.climax .wrap { position: relative; z-index: 2; max-width: 760px; }
+.climax .se { color: #f0626c; }
+.climax .h2 { color: #fff; }
+.climax p { color: rgba(255, 255, 255, 0.85); margin: 0 auto; }
 .cta {
   display: inline-block;
-  margin-top: 34px;
+  margin-top: 30px;
   font-family: var(--font-display);
   font-weight: 700;
   font-size: 15px;
-  letter-spacing: -0.01em;
   color: #fff;
   text-decoration: none;
   border: 1.5px solid #fff;
-  padding: 15px 30px;
+  padding: 14px 28px;
   border-radius: 11px;
   transition: all 0.15s;
 }
 .cta:hover { background: #fff; color: #0a0a0a; text-decoration: none; }
 
-@media (max-width: 860px) {
-  /* Minimal mobile composition: header → headline → question → chat (fills the
-     first screen), then the stats, then the content bands. The stage stacks as
-     a flex column; the chat gets a definite height so its thread scrolls and
-     the composer stays pinned. The desktop pitch (.sub, in-pitch stats) is
-     trimmed, and a mobile copy of the stats renders after the stage. */
-  .stage {
-    display: flex;
-    flex-direction: column;
-    min-height: auto;
-  }
-  .pitch {
-    border-right: none;
-    justify-content: flex-start;
-    padding: 5vh 6vw 2vh;
-  }
-  .sub { display: none; }
-  .meta--desktop { display: none; }
-  .meta--mobile {
-    display: flex;
-    margin: 0;
-    padding: 24px 6vw;
-    max-width: none;
-  }
-  .talk {
-    height: 62svh;
-    min-height: 0;
-  }
+/* Mobile: hero collapses to one column (pitch on top, chat card full-width
+   below), header stacks, nav wraps. The chat card stays bounded (400px) so its
+   thread scrolls and the composer stays pinned. */
+@media (max-width: 840px) {
+  .hero .wrap { grid-template-columns: 1fr; gap: 36px; }
+  .chat { height: 400px; }
+  .hdr .wrap { flex-direction: column; gap: 12px; align-items: flex-start; }
+  .nav { flex-wrap: wrap; gap: 16px; }
+  .stats { gap: 24px; }
 }

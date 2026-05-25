@@ -255,15 +255,20 @@ body.bb-chat-open #bb-chat-panel { display: flex; }\
 #bb-chat-send { flex: none; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center; background: #d40b1e; color: #fff; border: none; border-radius: 9px; font-size: 1.2rem; line-height: 1; cursor: pointer; }\
 #bb-chat-send:disabled { opacity: 0.5; cursor: not-allowed; }\
 \
-/* Inline mode (homepage): frameless, fills the .talk column; the prototype chat panel. */\
-#bb-chat-panel.bb-chat-panel--inline { display: flex; position: static; right: auto; bottom: auto; flex-direction: column; flex: 1 1 auto; min-height: 0; width: 100%; max-width: 100%; height: 100%; max-height: none; background: transparent; border: none; border-radius: 0; box-shadow: none; overflow: visible; }\
-.bb-chat-panel--inline #bb-chat-messages { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; padding: 0 26px 30px; }\
-.bb-chat-panel--inline .bb-begin { padding: 14px 18px 0; display: flex; align-items: center; gap: 8px; font-family: "Space Grotesk", sans-serif; font-weight: 500; font-size: 13px; letter-spacing: -0.01em; color: #0a0a0a; border-top: 1.5px solid #0a0a0a; }\
-.bb-chat-panel--inline .bb-begin-arr { color: #d40b1e; font-size: 15px; }\
-.bb-chat-panel--inline #bb-chat-form { padding: 10px 18px 16px; gap: 10px; align-items: flex-end; border-top: none; }\
-.bb-chat-panel--inline #bb-chat-input { height: 50px; border: 1.5px solid #d8d8d2; border-radius: 11px; padding: 13px 15px; font-size: 15px; }\
+/* Inline mode (homepage): frameless panel that fills the fixed-height .chat\
+   card. The card (style.css .chat) bounds the height; the panel just flows\
+   thread → begin-cue → composer. Styled to match the prototype chat card. */\
+#bb-chat-panel.bb-chat-panel--inline { display: flex; position: static; right: auto; bottom: auto; flex-direction: column; flex: 1 1 auto; min-height: 0; width: 100%; max-width: 100%; height: 100%; max-height: none; background: transparent; border: none; border-radius: 0; box-shadow: none; overflow: hidden; }\
+.bb-chat-panel--inline #bb-chat-messages { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 11px; padding: 18px 16px; }\
+.bb-chat-panel--inline .bb-msg { max-width: 88%; padding: 10px 13px; font-size: 13.5px; line-height: 1.45; }\
+.bb-chat-panel--inline .bb-msg-assistant { background: #f6f6f3; border-radius: 3px 12px 12px 12px; }\
+.bb-chat-panel--inline .bb-msg-user { border-radius: 12px 12px 3px 12px; }\
+.bb-chat-panel--inline .bb-begin { padding: 11px 14px 0; display: flex; align-items: center; gap: 6px; font-family: "Space Grotesk", sans-serif; font-weight: 500; font-size: 12px; color: #0a0a0a; border-top: none; }\
+.bb-chat-panel--inline .bb-begin-arr { color: #d40b1e; }\
+.bb-chat-panel--inline #bb-chat-form { padding: 9px 12px 12px; gap: 8px; align-items: flex-end; border-top: 1px solid #e7e7e2; }\
+.bb-chat-panel--inline #bb-chat-input { height: 42px; min-height: 42px; border: 1.5px solid #d8d8d2; border-radius: 10px; padding: 11px 13px; font-size: 14px; resize: none; }\
 .bb-chat-panel--inline #bb-chat-input:focus { outline: none; border-color: #0a0a0a; }\
-.bb-chat-panel--inline #bb-chat-send { width: 50px; height: 50px; border-radius: 11px; font-size: 22px; }\
+.bb-chat-panel--inline #bb-chat-send { width: 42px; height: 42px; border-radius: 10px; font-size: 19px; }\
 .bb-chat-panel--inline #bb-chat-send:hover { background: #9e0816; }\
 ';
   var style = document.createElement('style');
