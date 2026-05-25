@@ -96,7 +96,7 @@
     if (state.inline) {
       state.open = true;
       bootSession();
-      setTimeout(function () { els.input && els.input.focus(); }, 50);
+      setTimeout(function () { els.input && els.input.focus({ preventScroll: true }); }, 50);
     }
   }
 
@@ -104,7 +104,7 @@
     state.open = true;
     document.body.classList.add('bb-chat-open');
     if (!state.booted) bootSession();
-    setTimeout(function () { els.input && els.input.focus(); }, 50);
+    setTimeout(function () { els.input && els.input.focus({ preventScroll: true }); }, 50);
   }
 
   function closeWidget() {
@@ -185,7 +185,7 @@
       .finally(function () {
         state.sending = false;
         els.send.disabled = false;
-        els.input.focus();
+        els.input.focus({ preventScroll: true });
       });
   }
 
