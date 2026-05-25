@@ -441,9 +441,25 @@ a:hover { text-decoration: underline; }
   text-align: left;
 }
 
+/* Contact page — the chat is the centerpiece. Centered hero text, a prominent
+   centered card, then an email fallback + fine print below. Reuses .contact
+   (text-align:center) and the shared .chat / .contact-chat card. */
+.contact-page { padding-top: 72px; }
+.contact-page .h1 { max-width: 22ch; margin-left: auto; margin-right: auto; }
+.contact-page .lead {
+  font-size: 1.15rem;
+  color: var(--ink-soft);
+  margin: 22px auto 0;
+  max-width: 58ch;
+}
+.contact-page .contact-chat { margin-top: 40px; }
+.contact-fallback { font-size: 0.95rem; color: var(--muted); margin: 30px 0 0; }
+.contact-fine { font-size: 0.85rem; color: var(--muted); margin: 8px 0 0; }
+
 @media (max-width: 840px) {
   .hero-lite { padding: 60px 0 4px; }
   .problem { grid-template-columns: 1fr; gap: 10px; padding: 30px 0; }
   .problem-label { padding-top: 0; }
   .contact-chat { max-width: 100%; }
+  .contact-page { padding-top: 52px; }
 }
