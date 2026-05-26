@@ -3,6 +3,7 @@ import { notImplemented } from '../../lib/responses';
 import { adminLogin, adminLogout } from './auth';
 import { adminMe } from './me';
 import { listLeads, getLead, createLead, updateLead, deleteLead, getLeadChatTranscript } from './leads';
+import { leadsQueueHandler, leadCardHandler, listScriptVariantsHandler } from './leads-wizard';
 import { listClients, getClient, createClient, updateClient, deleteClient } from './clients';
 import {
   listOpportunities,
@@ -108,6 +109,14 @@ export const adminRoutes: Route[] = [
     description: 'Create a lead (manual entry).',
     handler: createLead,
   },
+  // NOTE: this static route MUST precede '/api/admin/leads/:id' so the :id
+  // pattern doesn't capture "queue" as an id (first-match-wins in the router).
+  {
+    method: 'GET',
+    pattern: new URLPattern({ pathname: '/api/admin/leads/queue' }),
+    description: 'Leads-wizard calling queue (?mode=cold|followups&target_kind=book|call&target=N). READ-ONLY.',
+    handler: leadsQueueHandler,
+  },
   {
     method: 'GET',
     pattern: new URLPattern({ pathname: '/api/admin/leads/:id' }),
@@ -134,9 +143,23 @@ export const adminRoutes: Route[] = [
   },
   {
     method: 'GET',
+    pattern: new URLPattern({ pathname: '/api/admin/leads/:id/card' }),
+    description: 'Leads-wizard call-card payload + activity timeline for one lead. READ-ONLY.',
+    handler: leadCardHandler,
+  },
+  {
+    method: 'GET',
     pattern: new URLPattern({ pathname: '/api/admin/leads/:id/chat-transcript' }),
     description: 'Chat transcript for a chat-sourced lead.',
     handler: getLeadChatTranscript,
+  },
+
+  // Script variants (leads-wizard call framework + usage rollups)
+  {
+    method: 'GET',
+    pattern: new URLPattern({ pathname: '/api/admin/script-variants' }),
+    description: 'Active script variants by stage with on-read usage rollups (?stage= optional). READ-ONLY.',
+    handler: listScriptVariantsHandler,
   },
 
   // Clients

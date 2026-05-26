@@ -241,3 +241,92 @@ export type Assessment = {
   created_by_user_id: string | null;
   created_at: string;
 };
+
+// ── Studio44 Layer 1 — step 2 read-endpoint response shapes ─────────────
+// Mirrors of the read-only session/queue, lead-card, and script-variant payloads.
+
+export type QueueMode = 'cold' | 'followups';
+export type QueueTargetKind = 'book' | 'call';
+export type QueuePriorityBucket = 'overdue' | 'due_today' | 'new';
+
+// One entry in the calling queue. `sort_rank` is the materialized ordering
+// primitive (overdue=0, due_today=1, new=2). `value_weight` is RESERVED for L4
+// value-weighting and is always null in Layer 1.
+export type LeadQueueItem = {
+  id: string;
+  name: string | null;
+  company: string | null;
+  industry: string | null;
+  source: LeadSource | null;
+  email: string | null;
+  phone: string | null;
+  status: LeadStatus;
+  attempt_count: number;
+  last_contacted_at: string | null;
+  next_followup_at: string | null;
+  priority_bucket: QueuePriorityBucket;
+  sort_rank: number;
+  value_weight: number | null;
+};
+
+// Ephemeral session metadata (no DB row). `id` is threaded into later write calls.
+export type CallingSession = {
+  id: string;
+  mode: QueueMode;
+  target_kind: QueueTargetKind;
+  target: number | null;
+  generated_at: string;
+};
+
+export type LeadQueueResponse = {
+  session: CallingSession;
+  queue: LeadQueueItem[];
+  counts: { queued: number; overdue?: number; due_today?: number };
+};
+
+// Identity/context payload for one lead's call card. Note: the prototype's
+// "contact role/title" and "rough size" have no backing column in the step-1
+// schema and are intentionally absent.
+export type LeadCard = {
+  id: string;
+  name: string | null;
+  company: string | null;
+  industry: string | null;
+  source: LeadSource | null;
+  email: string | null;
+  phone: string | null;
+  pain_summary: string | null;
+  urgency: LeadUrgency | null;
+  status: LeadStatus;
+  attempt_count: number;
+  last_contacted_at: string | null;
+  next_followup_at: string | null;
+  do_not_call: number; // 0 | 1
+  is_dead_number: number; // 0 | 1
+  created_at: string;
+};
+
+export type LeadCardResponse = {
+  card: LeadCard;
+  timeline: LeadActivity[];
+};
+
+// A script variant with its on-read usage rollup. book_rate is 0..1.
+export type ScriptVariantWithUsage = ScriptVariant & {
+  usage: {
+    used_count: number;
+    booked_count: number;
+    book_rate: number;
+  };
+};
+
+export type ScriptVariantsByStage = {
+  opener: ScriptVariantWithUsage[];
+  hook: ScriptVariantWithUsage[];
+  discovery: ScriptVariantWithUsage[];
+  close: ScriptVariantWithUsage[];
+};
+
+export type ScriptVariantsResponse = {
+  variants: ScriptVariantsByStage;
+};
