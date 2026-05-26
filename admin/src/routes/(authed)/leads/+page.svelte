@@ -40,7 +40,10 @@
 
 <div class="row" style="justify-content: space-between; margin-bottom: var(--space-4);">
   <h1>Leads</h1>
-  <a href={`${base}/leads/new`}><Button>New lead</Button></a>
+  <div class="row" style="gap: var(--space-3);">
+    <a href={`${base}/leads/work`}><Button>Work leads</Button></a>
+    <a href={`${base}/leads/new`}><Button variant="secondary">New lead</Button></a>
+  </div>
 </div>
 
 <div class="row" style="margin-bottom: var(--space-4);">
