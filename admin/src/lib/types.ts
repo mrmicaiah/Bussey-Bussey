@@ -29,6 +29,11 @@ export type Lead = {
   owner_user_id: string | null;
   last_contacted_at: string | null;
   created_at: string;
+  // Studio44 Layer 1 — migration 0009 (calling-wizard columns)
+  next_followup_at: string | null;
+  attempt_count: number;
+  do_not_call: number; // 0 | 1
+  is_dead_number: number; // 0 | 1
 };
 
 export type ClientStatus = 'prospect' | 'active' | 'paused' | 'former';
@@ -163,4 +168,76 @@ export type ChangeOrderLineItem = {
 export type ChangeOrderDetail = {
   change_order: ChangeOrder;
   line_items: ChangeOrderLineItem[];
+};
+
+// ── Studio44 Layer 1 — Leads wizard (migrations 0009–0014) ──────────────
+// Mirrors of the new data model. 0/1 integer flags are kept as `number` to
+// match the raw row shape the Worker returns (consistent with PricingComponent.active).
+
+export type LeadActivityKind =
+  | 'call'
+  | 'callback'
+  | 'voicemail'
+  | 'no_answer'
+  | 'dead_number'
+  | 'do_not_call'
+  | 'skipped'
+  | 'booked'
+  | 'note';
+
+export type LeadActivity = {
+  id: string;
+  lead_id: string;
+  kind: LeadActivityKind;
+  outcome: string | null;
+  attempt_number: number | null;
+  industry_at_time: string | null;
+  opener_variant_id: string | null;
+  hook_variant_id: string | null;
+  discovery_variant_id: string | null;
+  close_variant_id: string | null;
+  card_dwell_ms: number | null;
+  phone_duration_s: number | null;
+  session_id: string | null;
+  notes: string | null;
+  created_by_user_id: string | null;
+  created_at: string;
+};
+
+export type ScriptVariantStage = 'opener' | 'hook' | 'discovery' | 'close';
+export type ScriptVariantAuthorKind = 'operator' | 'alice' | 'seed';
+
+export type ScriptVariant = {
+  id: string;
+  stage: ScriptVariantStage;
+  body: string;
+  author_kind: ScriptVariantAuthorKind;
+  author_user_id: string | null;
+  label: string | null;
+  industry: string | null;
+  is_active: number; // 0 | 1
+  created_at: string;
+};
+
+export type ScriptVariantUsage = {
+  id: string;
+  variant_id: string;
+  lead_id: string | null;
+  activity_id: string | null;
+  outcome: string | null;
+  used_at: string;
+};
+
+export type AssessmentStatus = 'booked' | 'completed' | 'no_show' | 'canceled' | 'rescheduled';
+
+export type Assessment = {
+  id: string;
+  opportunity_id: string;
+  scheduled_at: string;
+  status: AssessmentStatus;
+  outcome_notes: string | null;
+  sequence_number: number;
+  booked_from_activity_id: string | null;
+  created_by_user_id: string | null;
+  created_at: string;
 };
