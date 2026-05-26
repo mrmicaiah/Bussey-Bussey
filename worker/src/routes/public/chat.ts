@@ -6,7 +6,7 @@ import { saveLeadFromChat, markLeadNotified, type SaveLeadInput } from '../../se
 import { sendEmail, adminNotifyRecipients } from '../../services/email';
 
 const INITIAL_GREETING =
-  "Hey — I'm here to help. Are you exploring what Bussey could do for your business, or looking for something specific?";
+  "I'm Alice, and I'm an AI — the same kind of thing Bussey builds for businesses like yours. Think of this as a test drive. What's the problem you can't seem to fix?";
 
 const CHAT_SESSION_KV_TTL_SECONDS = 24 * 60 * 60;
 
