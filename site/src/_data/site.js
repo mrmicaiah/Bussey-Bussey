@@ -11,6 +11,7 @@ export default {
   url: 'https://busseyandbussey.com',
   language: 'en',
   apiBase: process.env.BUSSEY_API_BASE ?? 'http://localhost:8787',
+  currentYear: new Date().getFullYear(),
   social: {
     email: 'hello@busseyandbussey.com',
   },
