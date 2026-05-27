@@ -5,6 +5,7 @@ import { adminMe } from './me';
 import { listLeads, getLead, createLead, updateLead, deleteLead, getLeadChatTranscript } from './leads';
 import { leadsQueueHandler, leadCardHandler, listScriptVariantsHandler, logLeadActivityHandler, bookAssessmentHandler } from './leads-wizard';
 import { listProspectsHandler, getProspectWorkspaceHandler } from './prospects';
+import { getDashboardHandler } from './dashboard';
 import { saveAssessmentNotesHandler, completeDigHandler, completePitchHandler, updateDemoSpecHandler } from './assessments';
 import { listClients, getClient, createClient, updateClient, deleteClient } from './clients';
 import {
@@ -96,6 +97,14 @@ export const adminRoutes: Route[] = [
     pattern: new URLPattern({ pathname: '/api/admin/me' }),
     description: 'Current admin user (for SPA boot).',
     handler: adminMe,
+  },
+
+  // Dashboard (funnel health + work stations)
+  {
+    method: 'GET',
+    pattern: new URLPattern({ pathname: '/api/admin/dashboard' }),
+    description: 'Dashboard: funnel health + four work stations, one round-trip. READ-ONLY.',
+    handler: getDashboardHandler,
   },
 
   // Leads

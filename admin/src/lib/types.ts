@@ -586,3 +586,77 @@ export type BookingResponse = {
   assessment_id: string;
   activity_id: string;
 };
+
+// ── Studio44 Dashboard — GET /api/admin/dashboard response (§4.1) ────────
+export type DashboardHealth = 'calm' | 'amber' | 'crimson';
+export type ReadinessPill = 'green' | 'amber' | 'crimson';
+
+export type DashboardTodaySlot = {
+  window: string; // '10-12' | '12-2' | '2-4' | '4-6'
+  booked: {
+    opportunity_id: string;
+    company: string;
+    assessment_label: string; // "Assessment 4 · pitch"
+    mode: AssessmentMode;
+  } | null;
+};
+
+export type DashboardPrepItem = {
+  assessment_id: string;
+  opportunity_id: string;
+  company: string;
+  prep_type: string; // 'pitch prep' | 'research'
+  due_at: string;
+};
+
+export type DashboardPresentationItem = {
+  opportunity_id: string;
+  company: string;
+  scheduled_at: string;
+  spec: ReadinessPill;
+  demo: ReadinessPill;
+  price: ReadinessPill;
+  demo_spec_id: string;
+  demo_spec_status: DemoSpecStatus;
+};
+
+export type DashboardResponse = {
+  funnel: {
+    leads: { total: number; this_week_delta: number; callable_now: number };
+    prospects: {
+      total: number;
+      digging: number;
+      building_pitch: number;
+      avg_days_in_funnel: number;
+      health: DashboardHealth;
+    };
+    presentations: {
+      total: number;
+      health: DashboardHealth;
+      next: { company: string; scheduled_at: string } | null;
+    };
+  };
+  stations: {
+    cold_calling: {
+      calls_this_week: number;
+      suggested_target: number;
+      effective_target: number;
+      override_active: boolean;
+      iso_week: string; // 'YYYY-Www'
+      reason: string;
+    };
+    today_appointments: {
+      is_weekday: boolean;
+      slots: DashboardTodaySlot[];
+    };
+    research_and_prep: {
+      waiting: DashboardPrepItem[];
+      total: number;
+    };
+    presentations: {
+      upcoming: DashboardPresentationItem[];
+      total: number;
+      not_ready: number;
+    };
+  };
+};
