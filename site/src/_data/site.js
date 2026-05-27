@@ -12,7 +12,4 @@ export default {
   language: 'en',
   apiBase: process.env.BUSSEY_API_BASE ?? 'http://localhost:8787',
   currentYear: new Date().getFullYear(),
-  social: {
-    email: 'hello@busseyandbussey.com',
-  },
 };
