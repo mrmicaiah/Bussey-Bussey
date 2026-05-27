@@ -11,8 +11,6 @@ tags:
 permalink: /articles/business-process-automation-tools/
 ---
 
-# Business Process Automation Tools: Why You Probably Need Fewer Than You Think
-
 Every business wants a process automation tool. Search the term and you'll drown in lists — twelve best this, top ten that, each one a free trial and a credit card field away. The problem isn't finding a business process automation tool. The problem is that the tools are a dime a dozen, and most of the ones being sold to you aren't needed anymore.
 
 That's not what the people selling them want you to hear. So let me explain.

@@ -11,8 +11,6 @@ tags:
 permalink: /articles/business-process-automation-software/
 ---
 
-# Business Process Automation Software: How to Actually Choose the Right One
-
 What business process automation software should you choose? It's the question business owners throw around to each other constantly. But in a world where these tools are a dime a dozen, the question I prefer to ask is a different one: *who's going to help you choose?*
 
 Honestly, finding someone to help you choose is the real work. Search the term online and who knows what you'll end up reading. You feel like you've found the world's best cup of coffee just because the package said so. Every site is the best, every tool is the smartest, every platform is the leader in something. That's marketing. It isn't a decision.

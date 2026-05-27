@@ -11,8 +11,6 @@ tags:
 permalink: /articles/business-process-automation/
 ---
 
-# Business Process Automation: What It Actually Takes to Do It Right
-
 A business has to have processes. So business process automation is the natural next step — not some exotic upgrade, just the logical thing you do once you realize you're running the same plays over and over by hand.
 
 And here's the part that should encourage you: if you have employees, and you've ever laid out a job for one of them, you've already done about eighty percent of the work it takes to build an automated process. You've thought about what needs to happen, in what order, by whom. That instinct is the foundation. The rest is discipline.

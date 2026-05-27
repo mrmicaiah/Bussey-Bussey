@@ -11,8 +11,6 @@ tags:
 permalink: /articles/automate-customer-service/
 ---
 
-# How to Automate Customer Service Without Driving Customers Away
-
 There's nothing worse than talking to a robot when you're angry. If you've ever thought about automating your customer service with a bot or an AI agent, you've already pictured it: a frustrated customer, a machine that doesn't get it, and a relationship you can't get back. That fear is real, and it's the reason a lot of owners never start.
 
 But it's also the wrong place to begin. Because customer service isn't only about the people who get angry. It's also about the people on a schedule.

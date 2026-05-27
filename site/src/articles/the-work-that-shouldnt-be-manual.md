@@ -11,8 +11,6 @@ tags:
 permalink: /articles/the-work-that-shouldnt-be-manual/
 ---
 
-# The work in your business that shouldn't be manual anymore
-
 Every service business runs on a pile of small, repetitive work that nobody chose and nobody questions. It's just how it's always been done. But a lot of it — maybe most of it — is work that software should be doing now, freeing your people for the work that actually needs a human. Here's where to look.
 
 ## Reading documents to find what's missing
