@@ -769,8 +769,16 @@ a:hover { text-decoration: underline; }
   margin: 40px auto 0;
   text-align: left;
 }
-.contact-fallback { font-size: 0.95rem; color: var(--muted); margin: 30px 0 0; }
 .contact-fine { font-size: 0.85rem; color: var(--muted); margin: 8px 0 0; }
+
+/* ============================================================================
+   Utilities
+   ========================================================================= */
+
+/* A measured block — used inside bands/climax to constrain copy width without
+   inline styles. Width tuned for ~60 characters of body text. */
+.copy-block { max-width: 60ch; }
+.copy-block--narrow { max-width: 56ch; }
 
 /* ============================================================================
    404 page
