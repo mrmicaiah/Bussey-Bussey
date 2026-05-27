@@ -5,6 +5,7 @@ import { adminMe } from './me';
 import { listLeads, getLead, createLead, updateLead, deleteLead, getLeadChatTranscript } from './leads';
 import { leadsQueueHandler, leadCardHandler, listScriptVariantsHandler, logLeadActivityHandler, bookAssessmentHandler } from './leads-wizard';
 import { listProspectsHandler, getProspectWorkspaceHandler } from './prospects';
+import { saveAssessmentNotesHandler, completeDigHandler } from './assessments';
 import { listClients, getClient, createClient, updateClient, deleteClient } from './clients';
 import {
   listOpportunities,
@@ -187,6 +188,18 @@ export const adminRoutes: Route[] = [
     pattern: new URLPattern({ pathname: '/api/admin/prospects/:id' }),
     description: 'One prospect workspace: assessment thread + current notes + handoff state (:id = opportunity id). READ-ONLY.',
     handler: getProspectWorkspaceHandler,
+  },
+  {
+    method: 'PUT',
+    pattern: new URLPattern({ pathname: '/api/admin/assessments/:id' }),
+    description: 'Save dig notes on an assessment (+ booked→in_progress on first save). Atomic.',
+    handler: saveAssessmentNotesHandler,
+  },
+  {
+    method: 'POST',
+    pattern: new URLPattern({ pathname: '/api/admin/assessments/:id/complete-dig' }),
+    description: 'Complete a dig assessment + book the next dig assessment (next datetime required). Atomic.',
+    handler: completeDigHandler,
   },
 
   // Clients

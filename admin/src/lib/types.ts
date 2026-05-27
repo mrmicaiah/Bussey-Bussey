@@ -345,6 +345,32 @@ export type ProspectWorkspace = {
   proposal: { id: string; status: ProposalStatus; setup_total: number; monthly_total: number } | null;
 };
 
+// ── Studio44 Layer 2 — step 4: assessment write shapes ──────────────────
+// Dig note fields only this step (build-pitch fields are step 5).
+export type SaveAssessmentNotesRequest = {
+  notes_heard_learned?: string | null;
+  notes_research_needed?: string | null;
+  notes_loose?: string | null;
+};
+
+export type SaveAssessmentNotesResponse = {
+  ok: true;
+  assessment: CurrentAssessment;
+};
+
+export type CompleteDigRequest = {
+  scheduled_at: string; // required — the next appointment datetime (loop discipline)
+  notes_heard_learned?: string | null;
+  notes_research_needed?: string | null;
+  notes_loose?: string | null;
+};
+
+export type CompleteDigResponse = {
+  ok: true;
+  completed_assessment_id: string;
+  next_assessment_id: string;
+};
+
 // ── Studio44 Layer 1 — step 2 read-endpoint response shapes ─────────────
 // Mirrors of the read-only session/queue, lead-card, and script-variant payloads.
 

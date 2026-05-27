@@ -8,7 +8,13 @@
   import { page } from '$app/state';
   import { base } from '$app/paths';
   import { api, ApiError } from '$lib/api';
-  import type { ProspectWorkspace } from '$lib/types';
+  import type {
+    ProspectWorkspace,
+    SaveAssessmentNotesRequest,
+    SaveAssessmentNotesResponse,
+    CompleteDigRequest,
+    CompleteDigResponse,
+  } from '$lib/types';
   import NotesField from '$lib/components/prospect-workspace/NotesField.svelte';
 
   const id = $derived(page.params['id']!);
@@ -17,10 +23,22 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
 
-  // Local dig-note buffers (no persistence this step).
+  // Local dig-note buffers.
   let heardLearned = $state('');
   let researchNeeded = $state('');
   let notesLoose = $state('');
+
+  // Save state.
+  let dirty = $state(false);
+  let saving = $state(false);
+  let saved = $state(false);
+  let saveError = $state<string | null>(null);
+
+  // Complete-&-book state.
+  let pickerOpen = $state(false);
+  let nextAppt = $state('');
+  let completing = $state(false);
+  let completeError = $state<string | null>(null);
 
   async function load() {
     loading = true;
@@ -32,6 +50,12 @@
       heardLearned = cur?.notes_heard_learned ?? '';
       researchNeeded = cur?.notes_research_needed ?? '';
       notesLoose = cur?.notes_loose ?? '';
+      dirty = false;
+      saved = false;
+      saveError = null;
+      completeError = null;
+      pickerOpen = false;
+      nextAppt = '';
     } catch (e) {
       error =
         e instanceof ApiError
@@ -58,6 +82,74 @@
     if (status === 'completed') return 'done';
     if (status === 'in_progress') return 'here';
     return 'next'; // booked / others
+  }
+
+  function markDirty() {
+    dirty = true;
+    saved = false;
+  }
+
+  function localDatetime(daysAhead: number, hour = 10): string {
+    const d = new Date();
+    d.setDate(d.getDate() + daysAhead);
+    d.setHours(hour, 0, 0, 0);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  function notePayload(): SaveAssessmentNotesRequest {
+    return {
+      notes_heard_learned: heardLearned,
+      notes_research_needed: researchNeeded,
+      notes_loose: notesLoose,
+    };
+  }
+
+  // Save the three dig fields. On success: clear dirty, show "saved", reflect any
+  // booked→in_progress transition locally. On failure: surface error, keep buffers.
+  async function save() {
+    if (saving || !ws?.current_assessment) return;
+    saving = true;
+    saveError = null;
+    try {
+      const res = await api.put<SaveAssessmentNotesResponse>(
+        `/api/admin/assessments/${ws.current_assessment.id}`,
+        notePayload(),
+      );
+      if (ws.current_assessment) {
+        ws.current_assessment.status = res.assessment.status;
+        // reflect the status in the thread (booked→in_progress) without a full reload
+        const t = ws.thread.find((x) => x.id === res.assessment.id);
+        if (t) t.status = res.assessment.status;
+      }
+      dirty = false;
+      saved = true;
+    } catch (e) {
+      saveError = e instanceof ApiError ? `Couldn't save (${e.errorCode ?? e.status}).` : 'Network error.';
+    } finally {
+      saving = false;
+    }
+  }
+
+  // Complete the dig assessment and book the next. On success: reload the workspace
+  // (the booked next becomes current; the thread grows). On failure: surface error,
+  // do NOT advance, keep the picker + buffers.
+  async function completeAndBook() {
+    if (completing || !ws?.current_assessment || !nextAppt) return;
+    completing = true;
+    completeError = null;
+    try {
+      const body: CompleteDigRequest = { scheduled_at: nextAppt, ...notePayload() };
+      await api.post<CompleteDigResponse>(
+        `/api/admin/assessments/${ws.current_assessment.id}/complete-dig`,
+        body,
+      );
+      await load(); // authoritative refresh: new current + grown thread
+    } catch (e) {
+      completeError = e instanceof ApiError ? `Couldn't complete (${e.errorCode ?? e.status}).` : 'Network error.';
+    } finally {
+      completing = false;
+    }
   }
 </script>
 
@@ -137,20 +229,52 @@
           </div>
 
           <div class="fields">
-            <NotesField label="Heard / Learned" icon="👂" bind:value={heardLearned} />
+            <NotesField label="Heard / Learned" icon="👂" bind:value={heardLearned} onchange={markDirty} />
             <NotesField
               label="Research needed"
               tag="Alice acts on this"
               icon="🔎"
               bind:value={researchNeeded}
+              onchange={markDirty}
             />
-            <NotesField label="Notes" hint="Anything loose." icon="✎" bind:value={notesLoose} />
+            <NotesField label="Notes" hint="Anything loose." icon="✎" bind:value={notesLoose} onchange={markDirty} />
           </div>
 
+          {#if saveError}<div class="err">{saveError}</div>{/if}
+          {#if completeError}<div class="err">{completeError}</div>{/if}
+
           <div class="actions">
-            <button type="button" class="save" disabled title="Saving wires in step 4">Save · wiring next</button>
-            <span class="muted small">Notes aren't saved yet — persistence lands in the next step.</span>
+            <button type="button" class="save" onclick={save} disabled={saving || !dirty}>
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            {#if saved && !dirty}
+              <span class="saved small">✓ Saved</span>
+            {:else if dirty}
+              <span class="muted small">Unsaved changes</span>
+            {/if}
+
+            <button type="button" class="complete" onclick={() => { pickerOpen = !pickerOpen; completeError = null; }} disabled={completing}>
+              Complete &amp; book the next →
+            </button>
           </div>
+
+          {#if pickerOpen}
+            <div class="picker">
+              <div class="picker-label">Set the next appointment</div>
+              <div class="picker-quick">
+                <button type="button" onclick={() => (nextAppt = localDatetime(1, 10))} disabled={completing}>Tomorrow 10am</button>
+                <button type="button" onclick={() => (nextAppt = localDatetime(3, 10))} disabled={completing}>In 3 days</button>
+              </div>
+              <input type="datetime-local" bind:value={nextAppt} disabled={completing} aria-label="Next appointment date and time" />
+              <div class="picker-actions">
+                <button type="button" class="ghost" onclick={() => (pickerOpen = false)} disabled={completing}>Cancel</button>
+                <button type="button" class="complete" onclick={completeAndBook} disabled={completing || !nextAppt}>
+                  {completing ? 'Completing…' : 'Complete & book'}
+                </button>
+              </div>
+              <p class="muted small">Completing saves these notes, closes this assessment, and books the next dig appointment.</p>
+            </div>
+          {/if}
         {/if}
       </section>
 
@@ -241,7 +365,43 @@
   .cur-when { color: var(--s44-muted); }
   .fields { display: flex; flex-direction: column; gap: 0.6rem; }
   .actions { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.25rem; flex-wrap: wrap; }
-  .save { background: var(--s44-surface-2); color: var(--s44-muted); border: 1px solid var(--s44-border); border-radius: 8px; padding: 0.5rem 0.9rem; font: inherit; cursor: not-allowed; }
+  .save {
+    background: var(--s44-surface-2); color: var(--s44-text); border: 1px solid var(--s44-border);
+    border-radius: 8px; padding: 0.5rem 0.9rem; font: inherit; cursor: pointer;
+  }
+  .save:hover:not(:disabled) { border-color: var(--s44-muted); }
+  .save:disabled { color: var(--s44-muted); cursor: not-allowed; opacity: 0.7; }
+  .saved { color: var(--s44-green); }
+  .complete {
+    margin-left: auto; background: var(--s44-crimson); color: #fff; border: none;
+    border-radius: 8px; padding: 0.5rem 0.9rem; font: inherit; font-weight: 700; cursor: pointer;
+  }
+  .complete:hover:not(:disabled) { filter: brightness(1.1); }
+  .complete:disabled { opacity: 0.6; cursor: not-allowed; }
+  .picker {
+    margin-top: 0.6rem; border: 1px solid var(--s44-border); border-radius: 10px;
+    padding: 0.8rem; background: var(--s44-surface); display: flex; flex-direction: column; gap: 0.5rem;
+  }
+  .picker-label { font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--s44-muted); }
+  .picker-quick { display: flex; gap: 0.5rem; }
+  .picker-quick button {
+    flex: 1; cursor: pointer; font: inherit; font-size: 0.82rem;
+    background: var(--s44-surface-2); color: var(--s44-text);
+    border: 1px solid var(--s44-border); border-radius: 6px; padding: 0.45rem;
+  }
+  .picker-quick button:hover:not(:disabled) { border-color: var(--s44-crimson); }
+  .picker-quick button:disabled { opacity: 0.55; cursor: not-allowed; }
+  .picker input {
+    font: inherit; background: var(--s44-bg); color: var(--s44-text);
+    border: 1px solid var(--s44-border); border-radius: 6px; padding: 0.45rem 0.6rem;
+  }
+  .picker-actions { display: flex; justify-content: flex-end; gap: 0.6rem; }
+  .ghost {
+    background: transparent; border: 1px solid var(--s44-border); color: var(--s44-text);
+    border-radius: 8px; padding: 0.5rem 0.9rem; font: inherit; cursor: pointer;
+  }
+  .ghost:hover:not(:disabled) { border-color: var(--s44-muted); }
+  .ghost:disabled { opacity: 0.6; cursor: not-allowed; }
   .calm { border: 1px dashed var(--s44-border); border-radius: 10px; padding: 1.5rem 1.1rem; text-align: center; color: var(--s44-text); }
   .calm p { margin: 0 0 0.3rem; }
 
