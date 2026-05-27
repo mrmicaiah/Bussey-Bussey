@@ -265,9 +265,10 @@ export type Assessment = {
   build_notes: string | null;
 };
 
-// demo_spec — Layer 2 (migration 0016). The prose brief a Studio87 manager builds
-// a demo from; one of the two handoff outputs (the other is the existing proposal).
-export type DemoSpecStatus = 'draft' | 'ready' | 'handed_off';
+// demo_spec — Layer 2 (migration 0016), lifecycle extended for the dashboard
+// (migration 0017: 'built' status + handed_off_at/built_at). The prose brief a
+// Studio87 manager builds a demo from; one of the two handoff outputs.
+export type DemoSpecStatus = 'draft' | 'ready' | 'handed_off' | 'built';
 export type DemoSpecAuthorKind = 'operator' | 'alice';
 
 export type DemoSpec = {
@@ -278,6 +279,20 @@ export type DemoSpec = {
   status: DemoSpecStatus;
   author_kind: DemoSpecAuthorKind;
   created_by_user_id: string | null;
+  created_at: string;
+  updated_at: string | null;
+  // Studio44 Dashboard (migration 0017) — lifecycle timestamps
+  handed_off_at: string | null;
+  built_at: string | null;
+};
+
+// cold_calling_target — Studio44 Dashboard (migration 0018). The operator's per-week
+// target override (the suggested target is computed on read, not stored).
+export type ColdCallingTarget = {
+  id: string;
+  admin_user_id: string;
+  iso_week: string; // 'YYYY-Www', e.g. '2026-W22'
+  target: number;
   created_at: string;
   updated_at: string | null;
 };
