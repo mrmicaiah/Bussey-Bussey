@@ -1,6 +1,7 @@
 import type { HandlerContext } from '../../types/route';
 import { json } from '../../lib/responses';
 import { auditStatement, type AuditEntry } from '../../lib/audit';
+import { buildProposalCreate } from '../../services/proposals';
 
 /**
  * Studio44 Layer 2 — assessment WRITE endpoints (spec §5).
@@ -246,6 +247,240 @@ export async function completeDigHandler(ctx: HandlerContext): Promise<Response>
   await ctx.env.DB.batch(stmts);
 
   return json({ ok: true, completed_assessment_id: id, next_assessment_id: nextId });
+}
+
+// ─── Complete a build-pitch assessment → the Alice handoff (POST) ──────────────
+//
+// POST /api/admin/assessments/:id/complete-pitch
+//
+// Completing a build-pitch meeting is PURELY the handoff (the presentation was booked
+// in the call). One atomic DB.batch (all-or-nothing) composing, in order:
+//   1. UPDATE current assessment → status='completed' (+ optional final build notes)
+//   2. proposal INSERT      (buildProposalCreate core — draft, totals 0)
+//   3. pricing_snapshot INSERT (buildProposalCreate core — 1:1, immutable)
+//   4. proposal_line_item INSERTs — one per non-empty line of build_to_price
+//      (component_code='custom_line_item', unit_price_at_snapshot=0; Alice prices at L4)
+//   5. demo_spec INSERT     (draft, author_kind='operator', linked to this assessment)
+//   6. audits (assessment.completed, proposal.create [from core], demo_spec.create)
+//
+// All ids are app-generated UUIDs known up-front (proposal id from the core), so line
+// items / snapshot / demo_spec reference the proposal with NO read-back. opportunity_id
+// + assessment_id are derived server-side from the current assessment.
+//
+// Rejects: 409 not_pitch_mode (dig completion is /complete-dig), 409 not_completable
+// (already completed/canceled), 409 already_handed_off (a demo_spec already exists for
+// this opportunity — one handoff per deal; FLAGGED as the safe default, see report).
+
+export async function completePitchHandler(ctx: HandlerContext): Promise<Response> {
+  if (!ctx.session) return json({ error: 'unauthenticated' }, { status: 401 });
+  const id = ctx.params['id'];
+  if (!id) return json({ error: 'invalid_id' }, { status: 400 });
+
+  const body = (await readJsonObject(ctx.request)) ?? {};
+
+  const cur = await ctx.env.DB.prepare(
+    `SELECT id, opportunity_id, status, mode, sequence_number, build_to_price FROM assessment WHERE id = ?`,
+  )
+    .bind(id)
+    .first<{
+      id: string;
+      opportunity_id: string;
+      status: string;
+      mode: string;
+      sequence_number: number;
+      build_to_price: string | null;
+    }>();
+  if (!cur) return json({ error: 'not_found' }, { status: 404 });
+
+  if (cur.mode !== 'build_pitch') {
+    return json({ error: 'not_pitch_mode' }, { status: 409 }); // dig completion is /complete-dig
+  }
+  if (cur.status === 'completed' || cur.status === 'canceled') {
+    return json({ error: 'not_completable', status: cur.status }, { status: 409 });
+  }
+
+  // One handoff per deal: refuse if a demo_spec already exists for this opportunity.
+  const existingHandoff = await ctx.env.DB.prepare(
+    `SELECT id FROM demo_spec WHERE opportunity_id = ? LIMIT 1`,
+  )
+    .bind(cur.opportunity_id)
+    .first<{ id: string }>();
+  if (existingHandoff) {
+    return json({ error: 'already_handed_off', demo_spec_id: existingHandoff.id }, { status: 409 });
+  }
+
+  const actor = { id: ctx.session.subjectId, ip: ctx.session.ipAddress, ua: ctx.session.userAgent };
+
+  // Resolve the prospect's company for the proposal name (operator-language; the
+  // proposal entity itself is plumbing the operator doesn't see directly here).
+  const company = await ctx.env.DB.prepare(
+    `SELECT c.company_name AS company FROM opportunity o JOIN client c ON c.id = o.client_id WHERE o.id = ?`,
+  )
+    .bind(cur.opportunity_id)
+    .first<{ company: string }>();
+  const proposalName = `${company?.company ?? 'Prospect'} — proposal`;
+
+  // Effective "to price" text: the payload's value if it sent one, else the stored value.
+  const effectiveToPrice = Object.prototype.hasOwnProperty.call(body, 'build_to_price')
+    ? stringOrNull(body['build_to_price'])
+    : cur.build_to_price;
+  const priceLines = (effectiveToPrice ?? '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+
+  // Build the proposal core (proposal + snapshot + proposal.create audit).
+  const proposalCore = await buildProposalCreate(
+    ctx.env,
+    { opportunity_id: cur.opportunity_id, name: proposalName, demo_enabled: true },
+    actor,
+  );
+  const demoSpecId = crypto.randomUUID();
+
+  const stmts: D1PreparedStatement[] = [];
+
+  // 1. Complete the current assessment (+ optional final build notes).
+  const setParts: string[] = [`status = 'completed'`];
+  const binds: unknown[] = [];
+  const finalFields: string[] = [];
+  for (const f of BUILD_FIELDS) {
+    if (Object.prototype.hasOwnProperty.call(body, f)) {
+      setParts.push(`${f} = ?`);
+      binds.push(stringOrNull(body[f]));
+      finalFields.push(f);
+    }
+  }
+  binds.push(id);
+  stmts.push(ctx.env.DB.prepare(`UPDATE assessment SET ${setParts.join(', ')} WHERE id = ?`).bind(...binds));
+
+  // 2-3. proposal + pricing_snapshot (FK: snapshot/line items → proposal, inserted first).
+  stmts.push(...proposalCore.statements);
+
+  // 4. Seed line items from "to price" (custom_line_item, price 0 — Alice fills at L4).
+  for (const line of priceLines) {
+    stmts.push(
+      ctx.env.DB.prepare(
+        `INSERT INTO proposal_line_item (id, proposal_id, component_code, quantity, unit_price_at_snapshot, line_total, description_override)
+         VALUES (?, ?, 'custom_line_item', 1, 0, 0, ?)`,
+      ).bind(crypto.randomUUID(), proposalCore.id, line),
+    );
+  }
+
+  // 5. demo_spec (draft, operator-authored, linked to this assessment + opportunity).
+  stmts.push(
+    ctx.env.DB.prepare(
+      `INSERT INTO demo_spec (id, opportunity_id, assessment_id, body, status, author_kind, created_by_user_id)
+       VALUES (?, ?, ?, NULL, 'draft', 'operator', ?)`,
+    ).bind(demoSpecId, cur.opportunity_id, id, actor.id),
+  );
+
+  // 6. Audits.
+  const audits: AuditEntry[] = [
+    {
+      actorType: 'admin_user',
+      actorId: actor.id,
+      action: 'assessment.completed',
+      entityType: 'assessment',
+      entityId: id,
+      changes: {
+        status: { from: cur.status, to: 'completed' },
+        mode: 'build_pitch',
+        final_notes_saved: finalFields,
+        handed_off: true,
+        proposal_id: proposalCore.id,
+        demo_spec_id: demoSpecId,
+      },
+      ipAddress: actor.ip,
+      userAgent: actor.ua,
+    },
+    ...proposalCore.audits,
+    {
+      actorType: 'admin_user',
+      actorId: actor.id,
+      action: 'demo_spec.create',
+      entityType: 'demo_spec',
+      entityId: demoSpecId,
+      changes: {
+        opportunity_id: cur.opportunity_id,
+        assessment_id: id,
+        proposal_id: proposalCore.id,
+        seeded_line_items: priceLines.length,
+      },
+      ipAddress: actor.ip,
+      userAgent: actor.ua,
+    },
+  ];
+  for (const a of audits) stmts.push(auditStatement(ctx.env, a));
+
+  await ctx.env.DB.batch(stmts);
+
+  return json(
+    { ok: true, completed_assessment_id: id, proposal_id: proposalCore.id, demo_spec_id: demoSpecId },
+    { status: 201 },
+  );
+}
+
+// ─── Demo-spec write (PUT) ──────────────────────────────────────────────────────
+//
+// PUT /api/admin/demo-specs/:id — edit body and/or status (draft|ready|handed_off).
+// Updates only present fields + updated_at. One DB.batch: [UPDATE, audit].
+
+const DEMO_SPEC_STATUSES = new Set(['draft', 'ready', 'handed_off']);
+
+export async function updateDemoSpecHandler(ctx: HandlerContext): Promise<Response> {
+  if (!ctx.session) return json({ error: 'unauthenticated' }, { status: 401 });
+  const id = ctx.params['id'];
+  if (!id) return json({ error: 'invalid_id' }, { status: 400 });
+
+  const body = await readJsonObject(ctx.request);
+  if (!body) return json({ error: 'invalid_request' }, { status: 400 });
+
+  const cur = await ctx.env.DB.prepare(`SELECT id FROM demo_spec WHERE id = ?`)
+    .bind(id)
+    .first<{ id: string }>();
+  if (!cur) return json({ error: 'not_found' }, { status: 404 });
+
+  const setParts: string[] = [];
+  const binds: unknown[] = [];
+  const changed: string[] = [];
+  if (Object.prototype.hasOwnProperty.call(body, 'body')) {
+    setParts.push(`body = ?`);
+    binds.push(stringOrNull(body['body']));
+    changed.push('body');
+  }
+  if (Object.prototype.hasOwnProperty.call(body, 'status')) {
+    const status = typeof body['status'] === 'string' ? body['status'] : '';
+    if (!DEMO_SPEC_STATUSES.has(status)) return json({ error: 'invalid_status' }, { status: 400 });
+    setParts.push(`status = ?`);
+    binds.push(status);
+    changed.push('status');
+  }
+
+  if (setParts.length > 0) {
+    setParts.push(`updated_at = ?`);
+    binds.push(new Date().toISOString());
+    binds.push(id);
+    await ctx.env.DB.batch([
+      ctx.env.DB.prepare(`UPDATE demo_spec SET ${setParts.join(', ')} WHERE id = ?`).bind(...binds),
+      auditStatement(ctx.env, {
+        actorType: 'admin_user',
+        actorId: ctx.session.subjectId,
+        action: 'demo_spec.update',
+        entityType: 'demo_spec',
+        entityId: id,
+        changes: { fields: changed },
+        ipAddress: ctx.session.ipAddress,
+        userAgent: ctx.session.userAgent,
+      }),
+    ]);
+  }
+
+  const row = await ctx.env.DB.prepare(
+    `SELECT id, opportunity_id, assessment_id, body, status, author_kind, created_by_user_id, created_at, updated_at FROM demo_spec WHERE id = ?`,
+  )
+    .bind(id)
+    .first();
+  return json({ ok: true, demo_spec: row });
 }
 
 // ─── helpers ──────────────────────────────────────────────────────────────

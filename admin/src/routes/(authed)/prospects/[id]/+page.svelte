@@ -14,6 +14,11 @@
     SaveAssessmentNotesResponse,
     CompleteDigRequest,
     CompleteDigResponse,
+    CompletePitchRequest,
+    CompletePitchResponse,
+    UpdateDemoSpecRequest,
+    UpdateDemoSpecResponse,
+    DemoSpecStatus,
   } from '$lib/types';
   import NotesField from '$lib/components/prospect-workspace/NotesField.svelte';
 
@@ -42,6 +47,19 @@
   let flipConfirmOpen = $state(false);
   let flipping = $state(false);
   let flipError = $state<string | null>(null);
+
+  // Handoff state (complete-pitch).
+  let handoffConfirmOpen = $state(false);
+  let handingOff = $state(false);
+  let handoffError = $state<string | null>(null);
+
+  // Demo-spec editor state.
+  let demoBody = $state('');
+  let demoStatus = $state<DemoSpecStatus>('draft');
+  let demoDirty = $state(false);
+  let demoSaving = $state(false);
+  let demoSaved = $state(false);
+  let demoError = $state<string | null>(null);
 
   // Save state.
   let dirty = $state(false);
@@ -78,6 +96,13 @@
       nextAppt = '';
       flipConfirmOpen = false;
       flipError = null;
+      handoffConfirmOpen = false;
+      handoffError = null;
+      demoBody = res.demo_spec?.body ?? '';
+      demoStatus = res.demo_spec?.status ?? 'draft';
+      demoDirty = false;
+      demoSaved = false;
+      demoError = null;
     } catch (e) {
       error =
         e instanceof ApiError
@@ -167,6 +192,66 @@
     if (!iso) return '';
     try {
       return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    } catch {
+      return iso;
+    }
+  }
+
+  // The handoff: complete the build-pitch assessment → create draft proposal + demo
+  // spec. Affirm first. On success reload (workspace returns demo_spec + proposal).
+  function requestHandoff() {
+    if (currentMode !== 'build_pitch') return;
+    handoffError = null;
+    handoffConfirmOpen = true;
+  }
+  async function confirmHandoff() {
+    if (handingOff || !ws?.current_assessment) return;
+    handingOff = true;
+    handoffError = null;
+    try {
+      const body: CompletePitchRequest = notePayload();
+      await api.post<CompletePitchResponse>(
+        `/api/admin/assessments/${ws.current_assessment.id}/complete-pitch`,
+        body,
+      );
+      handoffConfirmOpen = false;
+      await load();
+    } catch (e) {
+      handoffError = e instanceof ApiError ? `Couldn't hand off (${e.errorCode ?? e.status}).` : 'Network error.';
+    } finally {
+      handingOff = false;
+    }
+  }
+
+  function markDemoDirty() {
+    demoDirty = true;
+    demoSaved = false;
+  }
+  async function saveDemoSpec() {
+    if (demoSaving || !ws?.demo_spec) return;
+    demoSaving = true;
+    demoError = null;
+    try {
+      const body: UpdateDemoSpecRequest = { body: demoBody, status: demoStatus };
+      const res = await api.put<UpdateDemoSpecResponse>(`/api/admin/demo-specs/${ws.demo_spec.id}`, body);
+      if (ws.demo_spec) {
+        ws.demo_spec.body = res.demo_spec.body;
+        ws.demo_spec.status = res.demo_spec.status;
+      }
+      demoDirty = false;
+      demoSaved = true;
+    } catch (e) {
+      demoError = e instanceof ApiError ? `Couldn't save (${e.errorCode ?? e.status}).` : 'Network error.';
+    } finally {
+      demoSaving = false;
+    }
+  }
+
+  function fmtDateTimeShort(iso: string): string {
+    try {
+      return new Date(iso).toLocaleString(undefined, {
+        weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+      });
     } catch {
       return iso;
     }
@@ -348,9 +433,8 @@
             {/if}
 
             {#if currentMode === 'build_pitch'}
-              <!-- DISPLAY-ONLY this step — the handoff to Alice is step 6. No POST. -->
-              <button type="button" class="complete" disabled title="Wires in step 6">
-                Complete → hand to Alice <span class="soon">wiring next</span>
+              <button type="button" class="complete" onclick={requestHandoff} disabled={handingOff}>
+                Complete → hand to Alice
               </button>
             {:else}
               <button type="button" class="complete" onclick={() => { pickerOpen = !pickerOpen; completeError = null; }} disabled={completing}>
@@ -358,6 +442,17 @@
               </button>
             {/if}
           </div>
+
+          {#if handoffConfirmOpen}
+            <div class="flip-confirm">
+              <span>Hand this to Alice? Creates a draft proposal and a demo spec from these notes.</span>
+              {#if handoffError}<span class="flip-err">{handoffError}</span>{/if}
+              <div class="flip-actions">
+                <button type="button" class="ghost" onclick={() => (handoffConfirmOpen = false)} disabled={handingOff}>Cancel</button>
+                <button type="button" class="complete" onclick={confirmHandoff} disabled={handingOff}>{handingOff ? 'Handing off…' : 'Hand to Alice'}</button>
+              </div>
+            </div>
+          {/if}
 
           {#if currentMode === 'dig' && pickerOpen}
             <div class="picker">
@@ -411,6 +506,94 @@
         </div>
       </aside>
     </div>
+
+    <!-- HANDOFF (§2.3) — appears once the build-pitch meeting has been handed to Alice. -->
+    {#if ws.demo_spec && ws.proposal}
+      {@const pitched = ws.thread.find((t) => t.mode === 'build_pitch' && t.status === 'completed')}
+      <section class="handoff">
+        <div class="handoff-head">
+          <div>
+            <span class="brand">The handoff</span>
+            <div class="banner">
+              {pitched ? `Assessment #${pitched.sequence_number} complete` : 'Pitch-mode meeting complete'} — handed to Alice.
+            </div>
+          </div>
+          <div class="presentation">
+            {#if ws.next_appointment}
+              <span class="p-label">The presentation</span>
+              <span class="p-when">{fmtDateTimeShort(ws.next_appointment.scheduled_at)}</span>
+            {:else}
+              <span class="p-none">No presentation booked</span>
+            {/if}
+          </div>
+        </div>
+
+        <div class="handoff-grid">
+          <!-- LEFT — Alice interrogation (DORMANT, illustrative) -->
+          <div class="interrogation">
+            <div class="alice-head"><span class="alice-tag">Alice · interrogation</span><span class="alice-l4">wires in L4</span></div>
+            <p class="illus-label">Illustrative — Alice is not wired in this layer.</p>
+            <ul class="illus">
+              <li><span class="q">Alice:</span> Which line item is the anchor of this build?</li>
+              <li><span class="q">Alice:</span> What's the one outcome the client said they care about most?</li>
+              <li><span class="q">Alice:</span> Anything in scope we should deliberately keep thin?</li>
+              <li><span class="q">Alice:</span> What number lands this — and what's the floor?</li>
+            </ul>
+            <p class="fallback">Until Alice is wired, you can fill the proposal &amp; demo spec by hand — the containers work either way.</p>
+          </div>
+
+          <!-- RIGHT — the two output containers -->
+          <div class="outputs">
+            <div class="container">
+              <div class="container-head">
+                <span class="c-title">Priced proposal</span>
+                <span class="c-status">{ws.proposal.status}</span>
+              </div>
+              {#if ws.proposal.line_items.length === 0}
+                <p class="muted small">No line items seeded — add them in the proposal.</p>
+              {:else}
+                <ul class="lines">
+                  {#each ws.proposal.line_items as li (li.id)}
+                    <li>
+                      <span class="li-desc">{li.description_override ?? li.component_code}</span>
+                      <span class="li-price">{li.line_total > 0 ? `$${li.line_total.toLocaleString()}` : '—'}</span>
+                    </li>
+                  {/each}
+                </ul>
+              {/if}
+              <a class="open-proposal" href={`${base}/clients/${ws.prospect.client_id}/opportunities/${ws.prospect.id}/proposal`}>
+                Open proposal →
+              </a>
+            </div>
+
+            <div class="container">
+              <div class="container-head">
+                <span class="c-title">Demo-spec prompt</span>
+                <select class="demo-status" bind:value={demoStatus} onchange={markDemoDirty} disabled={demoSaving}>
+                  <option value="draft">draft</option>
+                  <option value="ready">ready</option>
+                  <option value="handed_off">handed off</option>
+                </select>
+              </div>
+              <NotesField
+                label="The brief"
+                hint="What to build / emphasize / ignore / the value to land. Prose — Alice authors this at L4."
+                icon="📝"
+                bind:value={demoBody}
+                onchange={markDemoDirty}
+              />
+              {#if demoError}<div class="err">{demoError}</div>{/if}
+              <div class="demo-actions">
+                <button type="button" class="save" onclick={saveDemoSpec} disabled={demoSaving || !demoDirty}>
+                  {demoSaving ? 'Saving…' : 'Save demo spec'}
+                </button>
+                {#if demoSaved && !demoDirty}<span class="saved small">✓ Saved</span>{:else if demoDirty}<span class="muted small">Unsaved changes</span>{/if}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    {/if}
   {/if}
 </div>
 
@@ -549,4 +732,43 @@
   .capture-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.35rem; }
   .capture ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
   .capture li { color: var(--s44-muted); font-size: 0.78rem; }
+
+  /* ── Handoff (§2.3) ── */
+  .handoff { margin-top: 1.5rem; border-top: 1px solid var(--s44-border); padding-top: 1.25rem; }
+  .handoff-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+  .banner { margin-top: 0.2rem; color: var(--s44-text); font-size: 1.05rem; font-weight: 600; }
+  .presentation { text-align: right; display: flex; flex-direction: column; gap: 0.1rem; }
+  .p-label { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--s44-amber); }
+  .p-when { color: var(--s44-text); font-size: 0.9rem; }
+  .p-none { color: var(--s44-muted); font-style: italic; font-size: 0.85rem; }
+
+  .handoff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; align-items: start; }
+  @media (max-width: 880px) { .handoff-grid { grid-template-columns: 1fr; } }
+
+  .interrogation {
+    border: 1px dashed var(--s44-border); border-radius: 10px; padding: 0.9rem;
+    background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(255,255,255,0.012) 8px, rgba(255,255,255,0.012) 16px);
+  }
+  .illus-label { margin: 0.4rem 0 0.5rem; color: var(--s44-amber); font-size: 0.72rem; }
+  .illus { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; opacity: 0.55; }
+  .illus li { color: var(--s44-muted); font-size: 0.82rem; }
+  .illus .q { color: var(--s44-text); font-weight: 600; margin-right: 0.3rem; }
+  .fallback { margin: 0.7rem 0 0; color: var(--s44-muted); font-size: 0.8rem; line-height: 1.45; border-top: 1px solid var(--s44-border); padding-top: 0.6rem; }
+
+  .outputs { display: flex; flex-direction: column; gap: 0.85rem; }
+  .container { border: 1px solid var(--s44-border); border-radius: 10px; padding: 0.85rem; background: var(--s44-surface); }
+  .container-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.6rem; }
+  .c-title { font-weight: 700; color: var(--s44-text); }
+  .c-status { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--s44-muted); border: 1px solid var(--s44-border); border-radius: 999px; padding: 0.05rem 0.45rem; }
+  .lines { list-style: none; margin: 0 0 0.7rem; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+  .lines li { display: flex; justify-content: space-between; gap: 0.75rem; font-size: 0.85rem; border-bottom: 1px solid var(--s44-border); padding-bottom: 0.3rem; }
+  .li-desc { color: var(--s44-text); }
+  .li-price { color: var(--s44-muted); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+  .open-proposal { display: inline-block; color: var(--s44-crimson); text-decoration: none; font-weight: 600; font-size: 0.88rem; }
+  .open-proposal:hover { text-decoration: underline; }
+  .demo-status {
+    font: inherit; font-size: 0.78rem; background: var(--s44-surface-2); color: var(--s44-text);
+    border: 1px solid var(--s44-border); border-radius: 6px; padding: 0.2rem 0.4rem;
+  }
+  .demo-actions { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.6rem; }
 </style>

@@ -330,9 +330,17 @@ export type CurrentAssessment = {
   build_notes: string | null;
 };
 
+export type HandoffProposalLineItem = {
+  id: string;
+  component_code: string;
+  description_override: string | null;
+  line_total: number;
+};
+
 export type ProspectWorkspace = {
   prospect: {
     id: string; // opportunity id
+    client_id: string; // plumbing — used only to route into the existing proposal editor
     company: string;
     contact: string | null;
     industry: string | null;
@@ -342,7 +350,41 @@ export type ProspectWorkspace = {
   current_assessment: CurrentAssessment | null;
   next_appointment: { id: string; scheduled_at: string } | null;
   demo_spec: { id: string; status: DemoSpecStatus; body: string | null; author_kind: DemoSpecAuthorKind } | null;
-  proposal: { id: string; status: ProposalStatus; setup_total: number; monthly_total: number } | null;
+  proposal: {
+    id: string;
+    status: ProposalStatus;
+    setup_total: number;
+    monthly_total: number;
+    line_items: HandoffProposalLineItem[];
+  } | null;
+};
+
+// ── Studio44 Layer 2 — step 6: complete-pitch (handoff) + demo-spec write ─────
+// complete-pitch accepts the five build fields (also saves) — no scheduled_at
+// (the presentation was booked in the call).
+export type CompletePitchRequest = {
+  build_what?: string | null;
+  build_emphasize?: string | null;
+  build_ignore?: string | null;
+  build_to_price?: string | null;
+  build_notes?: string | null;
+};
+
+export type CompletePitchResponse = {
+  ok: true;
+  completed_assessment_id: string;
+  proposal_id: string;
+  demo_spec_id: string;
+};
+
+export type UpdateDemoSpecRequest = {
+  body?: string | null;
+  status?: DemoSpecStatus;
+};
+
+export type UpdateDemoSpecResponse = {
+  ok: true;
+  demo_spec: DemoSpec;
 };
 
 // ── Studio44 Layer 2 — assessment write shapes (step 4 + step 5) ────────

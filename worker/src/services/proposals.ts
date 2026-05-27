@@ -1,6 +1,7 @@
 import type { Env } from '../types/env';
-import { writeAudit, shallowDiff } from '../lib/audit';
+import { writeAudit, shallowDiff, type AuditEntry } from '../lib/audit';
 import { randomBase64Url } from '../lib/random';
+import type { CreateBuild, AuditActor } from '../lib/tx';
 
 /**
  * Proposal + pricing_snapshot business logic.
@@ -230,23 +231,30 @@ export type CreateProposalInput = {
   presentation_notes?: string | null;
 };
 
-export async function createProposal(env: Env, input: CreateProposalInput, actorId: string, ip: string | null, ua: string | null): Promise<{ proposal: ProposalRow; snapshot: SnapshotRow; line_items: LineItemRow[] }> {
-  // 1. Verify opportunity exists.
-  const opp = await env.DB.prepare(`SELECT id FROM opportunity WHERE id = ?`)
-    .bind(input.opportunity_id)
-    .first<{ id: string }>();
-  if (!opp) throw new ProposalError(404, 'opportunity_not_found');
-
-  // 2. Build snapshot from current live rate card.
+/**
+ * CORE of proposal creation — the proposal INSERT + its 1:1 pricing_snapshot INSERT
+ * (immutable from creation) + the proposal.create audit, returned composable so a
+ * larger atomic batch (the Layer 2 complete-pitch handoff) can include them. The
+ * standalone createProposal() below runs the same statements + audit identically.
+ *
+ * Async because the snapshot is built from the live rate card (a DB read). Does NOT
+ * verify the opportunity exists — the caller validates (createProposal keeps its 404
+ * check; complete-pitch derives the opportunity from the assessment). No line items
+ * (createProposal never seeded them; complete-pitch appends its own seed rows).
+ */
+export async function buildProposalCreate(
+  env: Env,
+  input: CreateProposalInput,
+  actor: AuditActor,
+): Promise<CreateBuild> {
   const snapData = await buildSnapshotFromLiveRateCard(env);
-
   const proposalId = crypto.randomUUID();
   const snapshotId = crypto.randomUUID();
   const mods: ProposalModifiers = { ...DEFAULT_MODIFIERS, ...(input.modifiers ?? {}) };
   const keyCapsJson = input.key_capabilities ? JSON.stringify(input.key_capabilities) : null;
-
   const nowIso = new Date().toISOString();
-  await env.DB.batch([
+
+  const statements: D1PreparedStatement[] = [
     env.DB.prepare(
       `INSERT INTO proposal (id, opportunity_id, name, status, setup_total, monthly_total, narrative_challenge, narrative_solution, key_capabilities, pricing_display_mode, demo_enabled, modifiers, notes, presentation_notes, updated_at)
        VALUES (?, ?, ?, 'draft', 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -267,21 +275,36 @@ export async function createProposal(env: Env, input: CreateProposalInput, actor
     env.DB.prepare(
       `INSERT INTO pricing_snapshot (id, proposal_id, snapshot_data) VALUES (?, ?, ?)`,
     ).bind(snapshotId, proposalId, JSON.stringify(snapData)),
-  ]);
+  ];
+  const audits: AuditEntry[] = [
+    {
+      actorType: 'admin_user',
+      actorId: actor.id,
+      action: 'proposal.create',
+      entityType: 'proposal',
+      entityId: proposalId,
+      changes: { opportunity_id: input.opportunity_id, name: input.name, snapshot_components: Object.keys(snapData.components).length },
+      ipAddress: actor.ip,
+      userAgent: actor.ua,
+    },
+  ];
+  return { id: proposalId, statements, audits };
+}
 
-  await writeAudit(env, {
-    actorType: 'admin_user',
-    actorId,
-    action: 'proposal.create',
-    entityType: 'proposal',
-    entityId: proposalId,
-    changes: { opportunity_id: input.opportunity_id, name: input.name, snapshot_components: Object.keys(snapData.components).length },
-    ipAddress: ip,
-    userAgent: ua,
-  });
+export async function createProposal(env: Env, input: CreateProposalInput, actorId: string, ip: string | null, ua: string | null): Promise<{ proposal: ProposalRow; snapshot: SnapshotRow; line_items: LineItemRow[] }> {
+  // 1. Verify opportunity exists.
+  const opp = await env.DB.prepare(`SELECT id FROM opportunity WHERE id = ?`)
+    .bind(input.opportunity_id)
+    .first<{ id: string }>();
+  if (!opp) throw new ProposalError(404, 'opportunity_not_found');
 
-  const proposal = (await getProposalRow(env, proposalId))!;
-  const snapshot = await getSnapshotForProposal(env, proposalId);
+  // 2. Build + run the core (proposal + snapshot), then audit — same as before.
+  const core = await buildProposalCreate(env, input, { id: actorId, ip, ua });
+  await env.DB.batch(core.statements);
+  for (const a of core.audits) await writeAudit(env, a);
+
+  const proposal = (await getProposalRow(env, core.id))!;
+  const snapshot = await getSnapshotForProposal(env, core.id);
   return { proposal, snapshot, line_items: [] };
 }
 

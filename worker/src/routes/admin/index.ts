@@ -5,7 +5,7 @@ import { adminMe } from './me';
 import { listLeads, getLead, createLead, updateLead, deleteLead, getLeadChatTranscript } from './leads';
 import { leadsQueueHandler, leadCardHandler, listScriptVariantsHandler, logLeadActivityHandler, bookAssessmentHandler } from './leads-wizard';
 import { listProspectsHandler, getProspectWorkspaceHandler } from './prospects';
-import { saveAssessmentNotesHandler, completeDigHandler } from './assessments';
+import { saveAssessmentNotesHandler, completeDigHandler, completePitchHandler, updateDemoSpecHandler } from './assessments';
 import { listClients, getClient, createClient, updateClient, deleteClient } from './clients';
 import {
   listOpportunities,
@@ -200,6 +200,18 @@ export const adminRoutes: Route[] = [
     pattern: new URLPattern({ pathname: '/api/admin/assessments/:id/complete-dig' }),
     description: 'Complete a dig assessment + book the next dig assessment (next datetime required). Atomic.',
     handler: completeDigHandler,
+  },
+  {
+    method: 'POST',
+    pattern: new URLPattern({ pathname: '/api/admin/assessments/:id/complete-pitch' }),
+    description: 'Complete a build-pitch assessment → handoff: create draft proposal + line items + demo_spec. Atomic.',
+    handler: completePitchHandler,
+  },
+  {
+    method: 'PUT',
+    pattern: new URLPattern({ pathname: '/api/admin/demo-specs/:id' }),
+    description: 'Edit a demo spec (body / status draft|ready|handed_off). Atomic.',
+    handler: updateDemoSpecHandler,
   },
 
   // Clients

@@ -189,7 +189,23 @@ export async function getProspectWorkspaceHandler(ctx: HandlerContext): Promise<
   )
     .bind(oppId)
     .first<{ id: string; status: string; setup_total: number; monthly_total: number }>();
-  const proposal = proposalRow ?? null;
+  // Include the proposal's line items (for the handoff view's seeded-line-item list).
+  let proposal: {
+    id: string;
+    status: string;
+    setup_total: number;
+    monthly_total: number;
+    line_items: { id: string; component_code: string; description_override: string | null; line_total: number }[];
+  } | null = null;
+  if (proposalRow) {
+    const liRes = await ctx.env.DB.prepare(
+      `SELECT id, component_code, description_override, line_total FROM proposal_line_item
+         WHERE proposal_id = ? ORDER BY created_at ASC`,
+    )
+      .bind(proposalRow.id)
+      .all<{ id: string; component_code: string; description_override: string | null; line_total: number }>();
+    proposal = { ...proposalRow, line_items: liRes.results ?? [] };
+  }
 
   const daysInFunnel = Math.max(
     0,
@@ -199,6 +215,7 @@ export async function getProspectWorkspaceHandler(ctx: HandlerContext): Promise<
   return json({
     prospect: {
       id: opp.id, // opportunity id — the workspace key (plumbing; never labelled to the operator)
+      client_id: client.id, // plumbing — used to route into the existing proposal editor; not operator-facing
       company: client.company_name,
       contact: client.primary_contact_name,
       industry: client.industry,
