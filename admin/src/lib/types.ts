@@ -345,12 +345,22 @@ export type ProspectWorkspace = {
   proposal: { id: string; status: ProposalStatus; setup_total: number; monthly_total: number } | null;
 };
 
-// ── Studio44 Layer 2 — step 4: assessment write shapes ──────────────────
-// Dig note fields only this step (build-pitch fields are step 5).
+// ── Studio44 Layer 2 — assessment write shapes (step 4 + step 5) ────────
+// Accepts dig (step 4) and build-pitch (step 5) note fields. `mode` (optional)
+// drives the forward-only flip: sending 'build_pitch' on a dig assessment flips it
+// (server stamps mode_flipped_at). mode_flipped_at is NEVER client-set.
 export type SaveAssessmentNotesRequest = {
+  mode?: AssessmentMode;
+  // dig fields
   notes_heard_learned?: string | null;
   notes_research_needed?: string | null;
   notes_loose?: string | null;
+  // build-pitch fields
+  build_what?: string | null;
+  build_emphasize?: string | null;
+  build_ignore?: string | null;
+  build_to_price?: string | null;
+  build_notes?: string | null;
 };
 
 export type SaveAssessmentNotesResponse = {

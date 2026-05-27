@@ -1,9 +1,9 @@
 <script lang="ts">
-  // Studio44 Layer 2 — Prospect workspace, DIG MODE ONLY (§2.1). READ-ONLY data:
-  // consumes GET /api/admin/prospects/:id. The operator can TYPE in the note fields
-  // (local state) but there is NO save this step (wiring is step 4) — nothing is
-  // POSTed. The mode toggle is DISPLAY-ONLY (the flip + build-pitch fields are
-  // step 5). Dark palette scoped to the .s44 wrapper below.
+  // Studio44 Layer 2 — Prospect workspace (§2.1/§2.2). Mode-aware: dig mode shows the
+  // three dig fields + "Complete & book the next" (step 4); build-pitch mode shows the
+  // five build fields + a DISPLAY-ONLY "Complete → hand to Alice" button (the handoff
+  // is step 6). The mode toggle flips dig → build_pitch (forward-only, confirmed,
+  // server-stamped). Mode is PER-ASSESSMENT. Dark palette scoped to the .s44 wrapper.
   import { onMount } from 'svelte';
   import { page } from '$app/state';
   import { base } from '$app/paths';
@@ -23,10 +23,25 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
 
-  // Local dig-note buffers.
+  // Local note buffers — dig (3) + build-pitch (5).
   let heardLearned = $state('');
   let researchNeeded = $state('');
   let notesLoose = $state('');
+  let buildWhat = $state('');
+  let buildEmphasize = $state('');
+  let buildIgnore = $state('');
+  let buildToPrice = $state('');
+  let buildNotes = $state('');
+
+  // The current assessment's mode drives which fields + completion button render.
+  const currentMode = $derived(ws?.current_assessment?.mode ?? 'dig');
+  // Does the thread contain a flipped assessment? (drives the "The presentation" label)
+  const hasFlip = $derived((ws?.thread ?? []).some((t) => t.mode_flipped_at));
+
+  // Flip state (dig → build_pitch, confirmed).
+  let flipConfirmOpen = $state(false);
+  let flipping = $state(false);
+  let flipError = $state<string | null>(null);
 
   // Save state.
   let dirty = $state(false);
@@ -50,12 +65,19 @@
       heardLearned = cur?.notes_heard_learned ?? '';
       researchNeeded = cur?.notes_research_needed ?? '';
       notesLoose = cur?.notes_loose ?? '';
+      buildWhat = cur?.build_what ?? '';
+      buildEmphasize = cur?.build_emphasize ?? '';
+      buildIgnore = cur?.build_ignore ?? '';
+      buildToPrice = cur?.build_to_price ?? '';
+      buildNotes = cur?.build_notes ?? '';
       dirty = false;
       saved = false;
       saveError = null;
       completeError = null;
       pickerOpen = false;
       nextAppt = '';
+      flipConfirmOpen = false;
+      flipError = null;
     } catch (e) {
       error =
         e instanceof ApiError
@@ -97,12 +119,57 @@
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
+  // The active mode's note fields (the frontend only sends those — prior-mode notes
+  // are never touched).
   function notePayload(): SaveAssessmentNotesRequest {
+    if (currentMode === 'build_pitch') {
+      return {
+        build_what: buildWhat,
+        build_emphasize: buildEmphasize,
+        build_ignore: buildIgnore,
+        build_to_price: buildToPrice,
+        build_notes: buildNotes,
+      };
+    }
     return {
       notes_heard_learned: heardLearned,
       notes_research_needed: researchNeeded,
       notes_loose: notesLoose,
     };
+  }
+
+  // The flip is a recorded event — affirm before flipping.
+  function requestFlip() {
+    if (currentMode !== 'dig') return;
+    flipError = null;
+    flipConfirmOpen = true;
+  }
+
+  // Confirm: PUT carries the dig notes typed so far (no silent loss) + mode flip.
+  // On success reload (current → build_pitch, mode_flipped_at set, thread marker).
+  async function confirmFlip() {
+    if (flipping || !ws?.current_assessment) return;
+    flipping = true;
+    flipError = null;
+    try {
+      const body: SaveAssessmentNotesRequest = { ...notePayload(), mode: 'build_pitch' };
+      await api.put<SaveAssessmentNotesResponse>(`/api/admin/assessments/${ws.current_assessment.id}`, body);
+      flipConfirmOpen = false;
+      await load();
+    } catch (e) {
+      flipError = e instanceof ApiError ? `Couldn't flip (${e.errorCode ?? e.status}).` : 'Network error.';
+    } finally {
+      flipping = false;
+    }
+  }
+
+  function fmtDate(iso: string | null): string {
+    if (!iso) return '';
+    try {
+      return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    } catch {
+      return iso;
+    }
   }
 
   // Save the three dig fields. On success: clear dirty, show "saved", reflect any
@@ -184,13 +251,33 @@
           {#if ws.prospect.contact}{ws.prospect.contact}{/if}{#if ws.prospect.contact && ws.prospect.industry} · {/if}{#if ws.prospect.industry}{ws.prospect.industry}{/if}
         </span>
       </div>
-      <!-- Mode toggle — DISPLAY-ONLY this step. Flip + build-pitch fields are step 5. -->
-      <div class="toggle" role="group" aria-label="Mode (display only)">
-        <span class="seg active">Digging</span>
-        <button type="button" class="seg disabled" disabled title="Wires in step 5">Build the pitch <span class="soon">soon</span></button>
+      <!-- Mode toggle — functional, forward-only. Flipping is a recorded event. -->
+      <div class="toggle" role="group" aria-label="Mode">
+        {#if currentMode === 'build_pitch'}
+          <!-- forward-only: the dig side is inert once flipped -->
+          <span class="seg disabled" title="Flipped — forward-only">
+            Digging
+            {#if ws.current_assessment?.mode_flipped_at}<span class="flipped-on">flipped {fmtDate(ws.current_assessment.mode_flipped_at)}</span>{/if}
+          </span>
+          <span class="seg active">Build the pitch</span>
+        {:else}
+          <span class="seg active">Digging</span>
+          <button type="button" class="seg clickable" onclick={requestFlip} disabled={!ws.current_assessment}>Build the pitch →</button>
+        {/if}
       </div>
     </div>
-    <p class="toggle-hint">Flip to “Build the pitch” when the client signals “what would that cost?” <span class="muted">(coming soon)</span></p>
+    <p class="toggle-hint">Flip to “Build the pitch” when the client signals “what would that cost?”</p>
+
+    {#if flipConfirmOpen}
+      <div class="flip-confirm">
+        <span>Flip to build-the-pitch? This records the turn — it can't be undone.</span>
+        {#if flipError}<span class="flip-err">{flipError}</span>{/if}
+        <div class="flip-actions">
+          <button type="button" class="ghost" onclick={() => (flipConfirmOpen = false)} disabled={flipping}>Cancel</button>
+          <button type="button" class="complete" onclick={confirmFlip} disabled={flipping}>{flipping ? 'Flipping…' : 'Flip & record'}</button>
+        </div>
+      </div>
+    {/if}
 
     <div class="grid">
       <!-- LEFT: the meeting thread -->
@@ -205,10 +292,12 @@
                 <div class="t-top">
                   <span class="t-seq">#{t.sequence_number}</span>
                   {#if t.status === 'in_progress'}<span class="t-here">you are here</span>{/if}
+                  {#if t.status === 'booked' && hasFlip}<span class="t-present">The presentation</span>{/if}
                   <span class="t-date">{fmtDateTime(t.scheduled_at)}</span>
                 </div>
                 <div class="t-summary">{t.summary ?? '—'}</div>
                 <div class="t-mode">{t.mode === 'build_pitch' ? 'pitch' : 'dig'}</div>
+                {#if t.mode_flipped_at}<div class="t-turned">↳ turned to pitch here</div>{/if}
               </li>
             {/each}
           </ul>
@@ -225,19 +314,24 @@
         {:else}
           <div class="cur-head">
             <span>Assessment #{ws.current_assessment.sequence_number}</span>
+            <span class="cur-mode">{currentMode === 'build_pitch' ? 'Build the pitch' : 'Digging'}</span>
             <span class="cur-when">{fmtDateTime(ws.current_assessment.scheduled_at)}</span>
           </div>
 
           <div class="fields">
-            <NotesField label="Heard / Learned" icon="👂" bind:value={heardLearned} onchange={markDirty} />
-            <NotesField
-              label="Research needed"
-              tag="Alice acts on this"
-              icon="🔎"
-              bind:value={researchNeeded}
-              onchange={markDirty}
-            />
-            <NotesField label="Notes" hint="Anything loose." icon="✎" bind:value={notesLoose} onchange={markDirty} />
+            {#if currentMode === 'build_pitch'}
+              <!-- Build-pitch fields (§2.2), forward-only — five, in order. -->
+              <NotesField label="What gets built" icon="🔧" bind:value={buildWhat} onchange={markDirty} />
+              <NotesField label="What to emphasize" hint="What the client cares about." icon="★" bind:value={buildEmphasize} onchange={markDirty} />
+              <NotesField label="What doesn't matter" hint="Where not to spend effort." icon="✕" bind:value={buildIgnore} onchange={markDirty} />
+              <NotesField label="To price out" tag="Alice prices this" hint="Line-item fodder for Alice." icon="💲" bind:value={buildToPrice} onchange={markDirty} />
+              <NotesField label="Notes" hint="Anything else." icon="✎" bind:value={buildNotes} onchange={markDirty} />
+            {:else}
+              <!-- Dig fields (§2.1) — three, in order. -->
+              <NotesField label="Heard / Learned" icon="👂" bind:value={heardLearned} onchange={markDirty} />
+              <NotesField label="Research needed" tag="Alice acts on this" icon="🔎" bind:value={researchNeeded} onchange={markDirty} />
+              <NotesField label="Notes" hint="Anything loose." icon="✎" bind:value={notesLoose} onchange={markDirty} />
+            {/if}
           </div>
 
           {#if saveError}<div class="err">{saveError}</div>{/if}
@@ -253,12 +347,19 @@
               <span class="muted small">Unsaved changes</span>
             {/if}
 
-            <button type="button" class="complete" onclick={() => { pickerOpen = !pickerOpen; completeError = null; }} disabled={completing}>
-              Complete &amp; book the next →
-            </button>
+            {#if currentMode === 'build_pitch'}
+              <!-- DISPLAY-ONLY this step — the handoff to Alice is step 6. No POST. -->
+              <button type="button" class="complete" disabled title="Wires in step 6">
+                Complete → hand to Alice <span class="soon">wiring next</span>
+              </button>
+            {:else}
+              <button type="button" class="complete" onclick={() => { pickerOpen = !pickerOpen; completeError = null; }} disabled={completing}>
+                Complete &amp; book the next →
+              </button>
+            {/if}
           </div>
 
-          {#if pickerOpen}
+          {#if currentMode === 'dig' && pickerOpen}
             <div class="picker">
               <div class="picker-label">Set the next appointment</div>
               <div class="picker-quick">
@@ -278,22 +379,34 @@
         {/if}
       </section>
 
-      <!-- RIGHT: dormant Alice slot + capture strip -->
+      <!-- RIGHT: dormant Alice slot + capture strip (mode-aware) -->
       <aside class="right">
-        <div class="alice" aria-label="Alice prep (inactive)">
-          <div class="alice-head"><span class="alice-tag">Alice · prep</span><span class="alice-l4">wires in L4</span></div>
-          <p class="alice-note">Between meetings, Alice reads “Research needed” and does the digging — so you walk into the next one armed.</p>
+        <div class="alice" aria-label="Alice (inactive)">
+          {#if currentMode === 'build_pitch'}
+            <div class="alice-head"><span class="alice-tag">Alice · standing by</span><span class="alice-l4">wires in L4</span></div>
+            <p class="alice-note">On completion, Alice interrogates the scope, prices it, and specs the demo — turning these notes into a proposal and a build brief.</p>
+          {:else}
+            <div class="alice-head"><span class="alice-tag">Alice · prep</span><span class="alice-l4">wires in L4</span></div>
+            <p class="alice-note">Between meetings, Alice reads “Research needed” and does the digging — so you walk into the next one armed.</p>
+          {/if}
         </div>
 
         <div class="capture">
           <div class="capture-title">Captured per assessment</div>
           <ul>
-            <li>heard / learned</li>
-            <li>research needed</li>
-            <li>notes</li>
+            {#if currentMode === 'build_pitch'}
+              <li>what gets built</li>
+              <li>what to emphasize</li>
+              <li>what doesn't matter</li>
+              <li>to price out</li>
+              <li>notes</li>
+            {:else}
+              <li>heard / learned</li>
+              <li>research needed</li>
+              <li>notes</li>
+            {/if}
             <li>sequence #</li>
-            <li>outcome</li>
-            <li>mode at completion</li>
+            <li>mode at completion <strong>({currentMode === 'build_pitch' ? 'pitch' : 'dig'})</strong></li>
           </ul>
         </div>
       </aside>
@@ -342,6 +455,24 @@
   .seg.disabled { cursor: not-allowed; opacity: 0.7; }
   .soon { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.05em; border: 1px solid var(--s44-border); border-radius: 999px; padding: 0.02rem 0.35rem; }
   .toggle-hint { margin: 0.5rem 0 0; color: var(--s44-text); font-size: 0.82rem; }
+  .seg.clickable { cursor: pointer; }
+  .seg.clickable:hover:not(:disabled) { background: var(--s44-surface-2); color: var(--s44-text); }
+  .seg.clickable:disabled { opacity: 0.6; cursor: not-allowed; }
+  .flipped-on { font-size: 0.62rem; color: var(--s44-amber); margin-left: 0.4rem; }
+
+  .flip-confirm {
+    margin-top: 0.6rem; border: 1px solid var(--s44-amber); border-radius: 10px;
+    padding: 0.7rem 0.85rem; background: rgba(245, 166, 35, 0.08);
+    display: flex; flex-direction: column; gap: 0.5rem; max-width: 520px;
+    color: var(--s44-text); font-size: 0.9rem;
+  }
+  .flip-err { color: #fca5a5; font-size: 0.82rem; }
+  .flip-actions { display: flex; justify-content: flex-end; gap: 0.6rem; }
+
+  .cur-mode {
+    margin-left: 0.5rem; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--s44-crimson); border: 1px solid var(--s44-crimson); border-radius: 999px; padding: 0.05rem 0.45rem;
+  }
 
   .grid { display: grid; grid-template-columns: 230px 1fr 250px; gap: 1rem; margin-top: 1.25rem; align-items: start; }
   @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
@@ -359,6 +490,8 @@
   .t-date { margin-left: auto; color: var(--s44-muted); font-size: 0.72rem; }
   .t-summary { color: var(--s44-text); font-size: 0.82rem; margin-top: 0.2rem; line-height: 1.35; }
   .t-mode { margin-top: 0.2rem; color: var(--s44-muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .t-present { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--s44-amber); }
+  .t-turned { margin-top: 0.25rem; color: var(--s44-amber); font-size: 0.7rem; font-weight: 600; }
 
   .center { display: flex; flex-direction: column; gap: 0.75rem; }
   .cur-head { display: flex; justify-content: space-between; align-items: baseline; font-size: 0.85rem; }

@@ -192,7 +192,7 @@ export const adminRoutes: Route[] = [
   {
     method: 'PUT',
     pattern: new URLPattern({ pathname: '/api/admin/assessments/:id' }),
-    description: 'Save dig notes on an assessment (+ booked→in_progress on first save). Atomic.',
+    description: 'Save assessment notes (dig + build-pitch) + forward-only mode flip (+ booked→in_progress). Atomic.',
     handler: saveAssessmentNotesHandler,
   },
   {

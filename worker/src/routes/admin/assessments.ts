@@ -22,6 +22,12 @@ import { auditStatement, type AuditEntry } from '../../lib/audit';
  */
 
 const DIG_FIELDS = ['notes_heard_learned', 'notes_research_needed', 'notes_loose'] as const;
+const BUILD_FIELDS = ['build_what', 'build_emphasize', 'build_ignore', 'build_to_price', 'build_notes'] as const;
+// All note columns — the save accepts whichever are present (the frontend only sends
+// the active mode's fields, so prior-mode notes are never touched). Forward-only is
+// enforced on the `mode` transition below, not by restricting which fields persist.
+const ALL_NOTE_FIELDS = [...DIG_FIELDS, ...BUILD_FIELDS] as const;
+const MODES = new Set(['dig', 'build_pitch']);
 
 type AssessmentRow = {
   id: string;
@@ -45,11 +51,14 @@ type AssessmentRow = {
   build_notes: string | null;
 };
 
-// ─── Save dig notes (PUT) ──────────────────────────────────────────────────────
+// ─── Save assessment notes + mode flip (PUT) ───────────────────────────────────
 //
-// Updates whichever of the three dig note fields are present in the body, and — on
-// the first save — transitions status booked → in_progress (the operator opened the
-// assessment to work it). One DB.batch: [UPDATE assessment, audit].
+// Updates whichever note fields are present (3 dig + 5 build-pitch) and — on the
+// first save — transitions status booked → in_progress. Also handles the FORWARD-ONLY
+// mode flip: an incoming mode='build_pitch' on a dig assessment stamps mode='build_pitch'
+// + mode_flipped_at=now (server-side); build_pitch → dig is rejected 409. The flip
+// rides along with the save (no separate endpoint). One DB.batch: [UPDATE assessment,
+// audit notes_saved, (+ audit flipped_to_pitch on flip)].
 
 export async function saveAssessmentNotesHandler(ctx: HandlerContext): Promise<Response> {
   if (!ctx.session) return json({ error: 'unauthenticated' }, { status: 401 });
@@ -59,15 +68,29 @@ export async function saveAssessmentNotesHandler(ctx: HandlerContext): Promise<R
   const body = await readJsonObject(ctx.request);
   if (!body) return json({ error: 'invalid_request' }, { status: 400 });
 
-  const cur = await ctx.env.DB.prepare(`SELECT id, status FROM assessment WHERE id = ?`)
+  const cur = await ctx.env.DB.prepare(`SELECT id, status, mode FROM assessment WHERE id = ?`)
     .bind(id)
-    .first<{ id: string; status: string }>();
+    .first<{ id: string; status: string; mode: string }>();
   if (!cur) return json({ error: 'not_found' }, { status: 404 });
+
+  // The mode flip (forward-only). An incoming mode='build_pitch' on a dig assessment
+  // IS the flip: stamp mode_flipped_at server-side. build_pitch → dig is rejected.
+  let flip = false;
+  const now = new Date().toISOString();
+  if (Object.prototype.hasOwnProperty.call(body, 'mode')) {
+    const incoming = typeof body['mode'] === 'string' ? body['mode'] : '';
+    if (!MODES.has(incoming)) return json({ error: 'invalid_mode' }, { status: 400 });
+    if (incoming === 'dig' && cur.mode === 'build_pitch') {
+      return json({ error: 'mode_flip_is_forward_only' }, { status: 409 }); // can't revert to dig
+    }
+    if (incoming === 'build_pitch' && cur.mode === 'dig') flip = true;
+    // incoming === cur.mode → no-op (don't re-stamp mode_flipped_at)
+  }
 
   const setParts: string[] = [];
   const binds: unknown[] = [];
   const changedFields: string[] = [];
-  for (const f of DIG_FIELDS) {
+  for (const f of ALL_NOTE_FIELDS) {
     if (Object.prototype.hasOwnProperty.call(body, f)) {
       setParts.push(`${f} = ?`);
       binds.push(stringOrNull(body[f]));
@@ -76,6 +99,11 @@ export async function saveAssessmentNotesHandler(ctx: HandlerContext): Promise<R
   }
   const transition = cur.status === 'booked';
   if (transition) setParts.push(`status = 'in_progress'`);
+  if (flip) {
+    setParts.push(`mode = 'build_pitch'`);
+    setParts.push(`mode_flipped_at = ?`);
+    binds.push(now); // server-stamped — the client cannot set mode_flipped_at
+  }
 
   if (setParts.length > 0) {
     binds.push(id);
@@ -90,11 +118,26 @@ export async function saveAssessmentNotesHandler(ctx: HandlerContext): Promise<R
         changes: {
           fields: changedFields,
           status: transition ? { from: 'booked', to: 'in_progress' } : undefined,
+          flipped_to_pitch: flip || undefined,
         },
         ipAddress: ctx.session.ipAddress,
         userAgent: ctx.session.userAgent,
       }),
     ];
+    if (flip) {
+      stmts.push(
+        auditStatement(ctx.env, {
+          actorType: 'admin_user',
+          actorId: ctx.session.subjectId,
+          action: 'assessment.flipped_to_pitch',
+          entityType: 'assessment',
+          entityId: id,
+          changes: { mode: { from: 'dig', to: 'build_pitch' }, mode_flipped_at: now },
+          ipAddress: ctx.session.ipAddress,
+          userAgent: ctx.session.userAgent,
+        }),
+      );
+    }
     await ctx.env.DB.batch(stmts);
   }
 
