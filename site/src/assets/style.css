@@ -665,3 +665,16 @@ a:hover { text-decoration: underline; }
   .article-body { padding: 12px 0 64px; }
   .related-row { grid-template-columns: 1fr; gap: 8px; padding: 22px 0; }
 }
+
+/* ---------------------------------------------------------------------------
+   Floating bubble suppression — the chat-widget script auto-creates a floating
+   #bb-chat-bubble in the corner on any page that doesn't have a #bb-chat-inline
+   mount. We want Alice on the inline pages only, with no floating UI anywhere
+   else. Hide the bubble and its panel so the script can still load and serve
+   the inline mounts, but no corner bubble ever appears.
+   --------------------------------------------------------------------------- */
+#bb-chat-bubble,
+body:not(.bb-chat-open) #bb-chat-panel:not(.bb-chat-panel--inline),
+body.bb-chat-open #bb-chat-panel:not(.bb-chat-panel--inline) {
+  display: none !important;
+}
