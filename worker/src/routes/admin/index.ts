@@ -4,6 +4,7 @@ import { adminLogin, adminLogout } from './auth';
 import { adminMe } from './me';
 import { listLeads, getLead, createLead, updateLead, deleteLead, getLeadChatTranscript } from './leads';
 import { leadsQueueHandler, leadCardHandler, listScriptVariantsHandler, logLeadActivityHandler, bookAssessmentHandler } from './leads-wizard';
+import { listProspectsHandler, getProspectWorkspaceHandler } from './prospects';
 import { listClients, getClient, createClient, updateClient, deleteClient } from './clients';
 import {
   listOpportunities,
@@ -172,6 +173,20 @@ export const adminRoutes: Route[] = [
     pattern: new URLPattern({ pathname: '/api/admin/script-variants' }),
     description: 'Active script variants by stage with on-read usage rollups (?stage= optional). READ-ONLY.',
     handler: listScriptVariantsHandler,
+  },
+
+  // Prospects (Layer 2 — prospect workspace reads)
+  {
+    method: 'GET',
+    pattern: new URLPattern({ pathname: '/api/admin/prospects' }),
+    description: 'Operator-language list of prospects (prospect-status clients with an open opportunity). READ-ONLY.',
+    handler: listProspectsHandler,
+  },
+  {
+    method: 'GET',
+    pattern: new URLPattern({ pathname: '/api/admin/prospects/:id' }),
+    description: 'One prospect workspace: assessment thread + current notes + handoff state (:id = opportunity id). READ-ONLY.',
+    handler: getProspectWorkspaceHandler,
   },
 
   // Clients

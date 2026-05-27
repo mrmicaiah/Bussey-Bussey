@@ -282,6 +282,69 @@ export type DemoSpec = {
   updated_at: string | null;
 };
 
+// ── Studio44 Layer 2 — step 2 read-endpoint response shapes ─────────────
+// Operator language: "prospect" + "assessments". `id` is the opportunity id
+// (the workspace key / plumbing) — never labelled client/opportunity to the operator.
+
+export type ProspectListItem = {
+  id: string; // opportunity id — workspace key
+  company: string;
+  contact: string | null;
+  industry: string | null;
+  started_at: string; // opportunity created_at (booking moment)
+  assessment_count: number;
+  next_appointment_at: string | null;
+};
+
+export type ProspectsListResponse = {
+  prospects: ProspectListItem[];
+};
+
+// One row in the meeting thread (summary, not full notes).
+export type AssessmentThreadItem = {
+  id: string;
+  sequence_number: number;
+  mode: AssessmentMode;
+  status: AssessmentStatus;
+  scheduled_at: string;
+  mode_flipped_at: string | null;
+  summary: string | null;
+};
+
+// The current assessment's full structured notes (both modes' fields present).
+export type CurrentAssessment = {
+  id: string;
+  sequence_number: number;
+  scheduled_at: string;
+  status: AssessmentStatus;
+  mode: AssessmentMode;
+  mode_flipped_at: string | null;
+  outcome_notes: string | null;
+  notes_heard_learned: string | null;
+  notes_research_needed: string | null;
+  notes_loose: string | null;
+  build_what: string | null;
+  build_emphasize: string | null;
+  build_ignore: string | null;
+  build_to_price: string | null;
+  build_notes: string | null;
+};
+
+export type ProspectWorkspace = {
+  prospect: {
+    id: string; // opportunity id
+    company: string;
+    contact: string | null;
+    industry: string | null;
+    days_in_funnel: number;
+  };
+  thread: AssessmentThreadItem[];
+  current_assessment: CurrentAssessment | null;
+  next_appointment: { id: string; scheduled_at: string } | null;
+  demo_spec: { id: string; status: DemoSpecStatus; body: string | null; author_kind: DemoSpecAuthorKind } | null;
+  proposal: { id: string; status: ProposalStatus; setup_total: number; monthly_total: number } | null;
+};
+
 // ── Studio44 Layer 1 — step 2 read-endpoint response shapes ─────────────
 // Mirrors of the read-only session/queue, lead-card, and script-variant payloads.
 
