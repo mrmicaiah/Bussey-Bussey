@@ -228,7 +228,17 @@ export type ScriptVariantUsage = {
   used_at: string;
 };
 
-export type AssessmentStatus = 'booked' | 'completed' | 'no_show' | 'canceled' | 'rescheduled';
+// 'in_progress' added in Layer 2 (migration 0015) — the working lifecycle.
+export type AssessmentStatus =
+  | 'booked'
+  | 'in_progress'
+  | 'completed'
+  | 'no_show'
+  | 'canceled'
+  | 'rescheduled';
+
+// The mode an assessment is worked in (Layer 2, migration 0015). Forward-only flip.
+export type AssessmentMode = 'dig' | 'build_pitch';
 
 export type Assessment = {
   id: string;
@@ -240,6 +250,36 @@ export type Assessment = {
   booked_from_activity_id: string | null;
   created_by_user_id: string | null;
   created_at: string;
+  // Layer 2 (migration 0015) — workspace fields
+  mode: AssessmentMode;
+  mode_flipped_at: string | null;
+  // dig-mode notes
+  notes_heard_learned: string | null;
+  notes_research_needed: string | null;
+  notes_loose: string | null;
+  // build-pitch-mode notes
+  build_what: string | null;
+  build_emphasize: string | null;
+  build_ignore: string | null;
+  build_to_price: string | null;
+  build_notes: string | null;
+};
+
+// demo_spec — Layer 2 (migration 0016). The prose brief a Studio87 manager builds
+// a demo from; one of the two handoff outputs (the other is the existing proposal).
+export type DemoSpecStatus = 'draft' | 'ready' | 'handed_off';
+export type DemoSpecAuthorKind = 'operator' | 'alice';
+
+export type DemoSpec = {
+  id: string;
+  opportunity_id: string;
+  assessment_id: string | null;
+  body: string | null;
+  status: DemoSpecStatus;
+  author_kind: DemoSpecAuthorKind;
+  created_by_user_id: string | null;
+  created_at: string;
+  updated_at: string | null;
 };
 
 // ── Studio44 Layer 1 — step 2 read-endpoint response shapes ─────────────
