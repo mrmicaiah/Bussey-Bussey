@@ -351,7 +351,7 @@
   onMount(load);
 </script>
 
-<svelte:head><title>Opportunity · Bussey Admin</title></svelte:head>
+<svelte:head><title>Opportunity · Studio44</title></svelte:head>
 
 <div class="row" style="margin-bottom: var(--space-4);">
   <a href={`${base}/clients/${clientId}`} class="muted small">← Back to client</a>

@@ -82,7 +82,7 @@
   onMount(load);
 </script>
 
-<svelte:head><title>Calling list · Today · Bussey Admin</title></svelte:head>
+<svelte:head><title>Calling list · Today · Studio44</title></svelte:head>
 
 <div class="row" style="justify-content: space-between; align-items: baseline;">
   <div>

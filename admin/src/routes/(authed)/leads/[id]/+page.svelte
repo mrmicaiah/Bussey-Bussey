@@ -139,7 +139,7 @@
   onMount(load);
 </script>
 
-<svelte:head><title>Lead · Bussey Admin</title></svelte:head>
+<svelte:head><title>Lead · Studio44</title></svelte:head>
 
 <div class="row" style="margin-bottom: var(--space-4);">
   <a href={`${base}/leads`} class="muted small">← Back to leads</a>

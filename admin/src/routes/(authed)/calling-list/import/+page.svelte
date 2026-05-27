@@ -58,7 +58,7 @@
   }
 </script>
 
-<svelte:head><title>Import calling list · Bussey Admin</title></svelte:head>
+<svelte:head><title>Import calling list · Studio44</title></svelte:head>
 
 <div class="row" style="margin-bottom: var(--space-3);">
   <a href={`${base}/calling-list`} class="muted small">← Calling list</a>

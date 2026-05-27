@@ -109,14 +109,16 @@
   .impact {
     margin: var(--space-3) 0;
     padding: var(--space-3);
-    background: #fce8e6;
-    color: #5b1817;
+    background: rgba(212, 11, 30, 0.10);
+    color: var(--danger);
+    border: 1px solid #501313;
     border-radius: var(--radius);
     font-size: 0.9rem;
   }
   .impact.warn {
-    background: #fdf1d7;
-    color: #6b4500;
+    background: #2a1a0a;
+    color: var(--warning);
+    border-color: #854f0b66;
   }
   .impact ul {
     margin: var(--space-2) 0 0;

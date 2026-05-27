@@ -26,9 +26,10 @@
 </script>
 
 <header>
-  <div class="brand">
-    <a href={`${base}/`}>Bussey · Admin</a>
-  </div>
+  <a class="brand" href={`${base}/`}>Studio<span class="b-accent">44</span></a>
+  <a class="work" href={`${base}/leads/work`} title="Start a calling session" aria-label="Start a calling session">
+    Work →
+  </a>
   <nav>
     {#each navItems as item}
       <a
@@ -52,40 +53,62 @@
     align-items: center;
     gap: var(--space-6);
     padding: 0.6rem var(--space-6);
-    background: var(--surface);
+    background: var(--surface-2);
     border-bottom: 1px solid var(--border);
   }
-  .brand a {
-    font-weight: 600;
+  .brand {
+    font-weight: 500;
+    letter-spacing: 0.5px;
     color: var(--text);
     text-decoration: none;
+    font-size: 1.05rem;
   }
+  .brand:hover { text-decoration: none; }
+  .b-accent { color: var(--accent); }
+
+  /* Work launcher — primary crimson, one-click into the calling wizard from anywhere. */
+  .work {
+    background: var(--accent);
+    color: var(--accent-text);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.85rem;
+    padding: 0.35rem 0.8rem;
+    border-radius: var(--radius);
+    border: 1px solid transparent;
+    transition: filter 0.1s ease;
+  }
+  .work:hover { filter: brightness(1.1); text-decoration: none; }
+
   nav { display: flex; gap: var(--space-4); flex: 1; }
   nav a {
     padding: 0.3rem 0;
     color: var(--muted);
     border-bottom: 2px solid transparent;
+    text-decoration: none;
   }
   nav a:hover { color: var(--text); text-decoration: none; }
-  nav a.active { color: var(--accent); border-color: var(--accent); }
+  nav a.active { color: var(--text); border-color: var(--accent); }
+
   .user { display: flex; align-items: center; gap: var(--space-3); }
   .name { font-weight: 500; }
   .role {
     font-size: 0.75rem;
-    background: #ececea;
+    background: var(--border-soft);
     color: var(--muted);
     padding: 2px 8px;
     border-radius: 999px;
     text-transform: capitalize;
   }
   .logout {
-    background: none;
+    background: transparent;
     border: 1px solid var(--border);
     border-radius: var(--radius);
+    color: var(--text);
     padding: 0.3rem 0.7rem;
     font-size: 0.85rem;
     cursor: pointer;
     font-family: inherit;
   }
-  .logout:hover { background: #ececea; }
+  .logout:hover { background: var(--surface); }
 </style>

@@ -67,7 +67,7 @@
   });
 </script>
 
-<svelte:head><title>Dashboard · Bussey Admin</title></svelte:head>
+<svelte:head><title>Dashboard · Studio44</title></svelte:head>
 
 <h1>Hi, {data.user.name.split(' ')[0]}.</h1>
 <p class="muted">Pick a section to get started.</p>

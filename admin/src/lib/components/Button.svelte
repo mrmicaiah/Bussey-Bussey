@@ -41,6 +41,7 @@
 
   .btn-primary { background: var(--accent); color: var(--accent-text); }
   .btn-secondary { background: var(--surface); color: var(--text); border-color: var(--border); }
-  .btn-danger { background: var(--danger); color: #fff; }
+  /* Outlined danger (Studio44): --danger is now a light text/border tone, not a fill. */
+  .btn-danger { background: transparent; color: var(--danger); border-color: var(--danger); }
   .btn-ghost { background: transparent; color: var(--accent); border-color: transparent; }
 </style>

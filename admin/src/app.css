@@ -1,15 +1,24 @@
 :root {
-  --bg: #f7f7f5;
-  --surface: #ffffff;
-  --border: #e3e3df;
-  --text: #1a1a1a;
-  --muted: #6b6b66;
-  --accent: #1f3a5f;
+  /* Studio44 dark foundation (reskin pass 1). Variable NAMES are the stable
+     contract — only values changed; new tokens added below. */
+  --bg: #0a0a0b;
+  --surface: #101012;
+  --surface-2: #0d0d0f;   /* NEW — header/footer, subtler surface */
+  --border: #27272a;
+  --border-soft: #1c1c1f; /* NEW — section seams, weaker than --border */
+  --text: #f4f4f5;
+  --muted: #a1a1aa;
+  --muted-2: #71717a;     /* NEW — labels */
+  --muted-3: #52525b;     /* NEW — hints */
+  --muted-4: #3f3f46;     /* NEW — separators / disabled text */
+  --accent: #d40b1e;
   --accent-text: #ffffff;
-  --danger: #b3261e;
-  --warning: #b15c00;
-  --success: #146c43;
-  --info: #1f3a5f;
+  --link: var(--accent);  /* NEW — body links route through this; aliased to accent
+                             for now (see note) so a future pass can soften in one place */
+  --danger: #f09595;
+  --warning: #fac775;
+  --success: #5dcaa5;
+  --info: #d40b1e;
   --radius: 6px;
   --space-1: 0.25rem;
   --space-2: 0.5rem;
@@ -30,10 +39,11 @@
 body {
   margin: 0;
   background: var(--bg);
+  color: var(--text);
 }
 
 a {
-  color: var(--accent);
+  color: var(--link);
   text-decoration: none;
 }
 a:hover {
@@ -60,36 +70,49 @@ h3 { font-size: 1rem; font-weight: 600; }
 .muted { color: var(--muted); }
 .small { font-size: 0.85rem; }
 
+/* ── Status badges (Studio44 semantic palette: green / amber / crimson / zinc) ──
+   Base + unrecognized (.badge-) are zinc/neutral. 1px border softens against dark. */
 .badge {
   display: inline-block;
-  padding: 2px 8px;
+  padding: 3px 9px;
   border-radius: 999px;
   font-size: 0.78rem;
-  background: #ececea;
+  background: #161618;
   color: var(--muted);
+  border: 1px solid #27272a;
   text-transform: capitalize;
 }
-.badge-new        { background: #e2eaf3; color: #1f3a5f; }
-.badge-reviewed   { background: #e2eaf3; color: #1f3a5f; }
-.badge-contacted  { background: #d8e8d8; color: #146c43; }
-.badge-qualified  { background: #d8e8d8; color: #146c43; }
-.badge-converted  { background: #d3c6e9; color: #4a2c8b; }
-.badge-disqualified { background: #f1d3d1; color: #b3261e; }
-.badge-prospect   { background: #ececea; color: #6b6b66; }
-.badge-active     { background: #d8e8d8; color: #146c43; }
-.badge-paused     { background: #fde7c4; color: #b15c00; }
-.badge-former     { background: #ececea; color: #6b6b66; }
-.badge-open       { background: #e2eaf3; color: #1f3a5f; }
-.badge-proposed   { background: #fde7c4; color: #b15c00; }
-.badge-accepted   { background: #d8e8d8; color: #146c43; }
-.badge-lost       { background: #f1d3d1; color: #b3261e; }
-.badge-draft      { background: #ececea; color: #6b6b66; }
-.badge-sent       { background: #e2eaf3; color: #1f3a5f; }
-.badge-superseded { background: #ececea; color: #6b6b66; text-decoration: line-through; }
-.badge-declined   { background: #f1d3d1; color: #b3261e; }
-.badge-approved   { background: #d8e8d8; color: #146c43; }
-.badge-rejected   { background: #f1d3d1; color: #b3261e; }
-.badge-withdrawn  { background: #ececea; color: #6b6b66; }
+.badge- { background: #161618; color: #a1a1aa; border-color: #27272a; }
+
+/* Green / good */
+.badge-contacted,
+.badge-qualified,
+.badge-active,
+.badge-accepted,
+.badge-approved,
+.badge-converted   { background: #0f1410; color: #5dcaa5; border-color: #1d3a1f; }
+
+/* Amber / in-progress */
+.badge-paused,
+.badge-proposed,
+.badge-sent,
+.badge-open        { background: #2a1a0a; color: #fac775; border-color: #854f0b66; }
+
+/* Crimson / bad — needs attention. `new` is crimson in Studio44 (fresh = needs you). */
+.badge-new,
+.badge-disqualified,
+.badge-lost,
+.badge-declined,
+.badge-rejected    { background: #15090b; color: #f09595; border-color: #501313; }
+
+/* Zinc / neutral */
+.badge-reviewed,
+.badge-prospect,
+.badge-former,
+.badge-draft,
+.badge-superseded,
+.badge-withdrawn   { background: #161618; color: #a1a1aa; border-color: #27272a; }
+.badge-superseded  { text-decoration: line-through; }
 
 table { width: 100%; border-collapse: collapse; }
 th, td {
@@ -98,12 +121,12 @@ th, td {
   border-bottom: 1px solid var(--border);
 }
 th { font-weight: 600; color: var(--muted); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.04em; }
-tr:hover td { background: #fafaf8; }
+tr:hover td { background: var(--surface-2); }
 
 .error {
-  background: #fce8e6;
+  background: rgba(212, 11, 30, 0.10);
   color: var(--danger);
-  border: 1px solid #f1c0bd;
+  border: 1px solid #501313;
   padding: var(--space-3);
   border-radius: var(--radius);
   font-size: 0.9rem;

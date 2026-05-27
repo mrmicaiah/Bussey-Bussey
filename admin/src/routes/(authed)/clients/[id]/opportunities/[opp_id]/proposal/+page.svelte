@@ -204,7 +204,7 @@
   onMount(bootstrap);
 </script>
 
-<svelte:head><title>Calculator · Bussey Admin</title></svelte:head>
+<svelte:head><title>Calculator · Studio44</title></svelte:head>
 
 {#if loading}
   <p class="muted">Loading proposal…</p>

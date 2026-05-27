@@ -47,7 +47,7 @@
   }
 </script>
 
-<svelte:head><title>New lead · Bussey Admin</title></svelte:head>
+<svelte:head><title>New lead · Studio44</title></svelte:head>
 
 <div class="row" style="margin-bottom: var(--space-4);">
   <a href={`${base}/leads`} class="muted small">← Back to leads</a>

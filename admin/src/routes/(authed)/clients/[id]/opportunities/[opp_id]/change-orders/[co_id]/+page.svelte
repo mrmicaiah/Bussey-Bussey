@@ -183,7 +183,7 @@
   }
 </script>
 
-<svelte:head><title>Change order · Bussey Admin</title></svelte:head>
+<svelte:head><title>Change order · Studio44</title></svelte:head>
 
 <div class="row" style="margin-bottom: var(--space-4);">
   <a href={`${base}/clients/${clientId}/opportunities/${oppId}`} class="muted small">← Back to opportunity</a>

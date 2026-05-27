@@ -30,7 +30,7 @@
   }
 </script>
 
-<svelte:head><title>Clients · Bussey Admin</title></svelte:head>
+<svelte:head><title>Clients · Studio44</title></svelte:head>
 
 <div class="row" style="justify-content: space-between; margin-bottom: var(--space-4);">
   <h1>Clients</h1>

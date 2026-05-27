@@ -41,11 +41,11 @@
   }
 </script>
 
-<svelte:head><title>Sign in · Bussey Admin</title></svelte:head>
+<svelte:head><title>Sign in · Studio44</title></svelte:head>
 
 <main>
   <div class="card surface">
-    <h1>Bussey · Admin</h1>
+    <h1>Studio44</h1>
     <p class="muted small">Sign in to continue.</p>
 
     <form onsubmit={onSubmit} class="col">
