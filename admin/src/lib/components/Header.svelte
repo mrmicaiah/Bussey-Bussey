@@ -19,6 +19,7 @@
   const navItems = [
     { href: `${base}/`, label: 'Dashboard', match: (p: string) => p === `${base}/` || p === base },
     { href: `${base}/leads`, label: 'Leads', match: (p: string) => p.startsWith(`${base}/leads`) },
+    { href: `${base}/prospects`, label: 'Prospects', match: (p: string) => p.startsWith(`${base}/prospects`) },
     { href: `${base}/clients`, label: 'Clients', match: (p: string) => p.startsWith(`${base}/clients`) },
     { href: `${base}/calling-list/today`, label: 'Calling list', match: (p: string) => p.startsWith(`${base}/calling-list`) },
   ];
