@@ -7,7 +7,7 @@
   import { onMount } from 'svelte';
   import { base } from '$app/paths';
   import { api, ApiError } from '$lib/api';
-  import type { DashboardResponse } from '$lib/types';
+  import type { DashboardResponse, ColdCallingTargetResponse } from '$lib/types';
   import Button from '$lib/components/Button.svelte';
 
   let { data }: { data: { user: import('$lib/types').AdminUser } } = $props();
@@ -16,8 +16,16 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
 
-  // Mark-built confirm dialog (display-only this step).
+  // Mark-built confirm dialog (display-only this step — step 5 wires it).
   let markBuiltFor = $state<{ company: string; demo_spec_id: string } | null>(null);
+
+  // Cold-calling push-target write state: debounced PUT, optimistic, error-reverting.
+  let ccSaving = $state(false);
+  let ccError = $state<string | null>(null);
+  let ccTimer: ReturnType<typeof setTimeout> | null = null;
+  // Snapshot of {effective_target, override_active} from BEFORE the current click-burst,
+  // so a failed PUT reverts to the real pre-edit state.
+  let ccRevert: { effective_target: number; override_active: boolean } | null = null;
 
   async function load() {
     loading = true;
@@ -34,11 +42,48 @@
 
   const priority = $derived(dash != null && dash.funnel.presentations.health !== 'calm');
 
-  // Display-only handlers (no POST this step — wiring is steps 4/5).
-  function bumpTarget(_delta: number) {
-    // wiring next (step 4) — intentionally does not POST or optimistically update.
-    console.log('[dashboard] push-target adjust is display-only this step');
+  // Cold-calling +/-: optimistic + debounced (one PUT after a click-burst) + error-revert.
+  function bumpTarget(delta: number) {
+    if (!dash || ccSaving) return;
+    const cc = dash.stations.cold_calling;
+    const next = Math.max(5, Math.min(100, cc.effective_target + delta));
+    if (next === cc.effective_target) return; // at a bound — no-op
+    // Capture the real pre-burst state once, so a later failure reverts cleanly.
+    if (ccRevert === null) ccRevert = { effective_target: cc.effective_target, override_active: cc.override_active };
+    cc.effective_target = next; // optimistic
+    cc.override_active = true; // so the "your push" reason can render
+    ccError = null;
+    if (ccTimer) clearTimeout(ccTimer);
+    ccTimer = setTimeout(() => void flushTarget(), 300);
   }
+
+  async function flushTarget() {
+    if (!dash) return;
+    ccTimer = null;
+    const cc = dash.stations.cold_calling;
+    const revert = ccRevert;
+    ccRevert = null;
+    ccSaving = true;
+    try {
+      const res = await api.put<ColdCallingTargetResponse>('/api/admin/cold-calling-target', {
+        target: cc.effective_target,
+      });
+      // Server is the source of truth (keep calls_this_week; replace the rest).
+      cc.effective_target = res.effective_target;
+      cc.override_active = res.override_active;
+      cc.suggested_target = res.suggested_target;
+      cc.reason = res.reason;
+    } catch (e) {
+      if (revert) {
+        cc.effective_target = revert.effective_target;
+        cc.override_active = revert.override_active;
+      }
+      ccError = "couldn't save — try again";
+    } finally {
+      ccSaving = false;
+    }
+  }
+
   function confirmMarkBuilt() {
     // wiring next (step 5) — intentionally does not POST the status transition.
     console.log('[dashboard] mark-built is display-only this step');
@@ -145,14 +190,15 @@
       <div class="target">
         <div class="target-label muted small">Suggested target (push it if you're up for it)</div>
         <div class="target-control">
-          <button type="button" class="step" onclick={() => bumpTarget(-5)} title="Wiring next (step 4)" aria-label="Lower target">−</button>
+          <button type="button" class="step" onclick={() => bumpTarget(-5)} disabled={ccSaving || s.cold_calling.effective_target <= 5} title="Lower target" aria-label="Lower target">−</button>
           <div class="target-num">
             <span class="big">{s.cold_calling.effective_target}</span>
             <span class="unit muted small">calls / week</span>
           </div>
-          <button type="button" class="step" onclick={() => bumpTarget(5)} title="Wiring next (step 4)" aria-label="Raise target">+</button>
+          <button type="button" class="step" onclick={() => bumpTarget(5)} disabled={ccSaving || s.cold_calling.effective_target >= 100} title="Raise target" aria-label="Raise target">+</button>
         </div>
         <div class="reason muted small">{s.cold_calling.reason}</div>
+        {#if ccError}<div class="cc-error">{ccError}</div>{/if}
       </div>
     </section>
 
@@ -334,10 +380,12 @@
     width: 2rem; height: 2rem; border-radius: var(--radius); cursor: pointer; font: inherit; font-size: 1.1rem;
     background: var(--surface-2); color: var(--text); border: 1px solid var(--border);
   }
-  .step:hover { border-color: var(--muted); }
+  .step:hover:not(:disabled) { border-color: var(--muted); }
+  .step:disabled { opacity: 0.45; cursor: not-allowed; }
   .target-num { display: flex; flex-direction: column; align-items: center; }
   .target-num .big { font-size: 1.8rem; font-weight: 700; line-height: 1; }
   .reason { margin-top: 0.2rem; }
+  .cc-error { margin-top: 0.3rem; font-size: 0.78rem; color: var(--danger); }
 
   /* Today slots */
   .slots, .rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }

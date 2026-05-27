@@ -620,6 +620,28 @@ export type DashboardPresentationItem = {
   demo_spec_status: DemoSpecStatus;
 };
 
+// The dashboard's cold-calling station sub-object. The cold-calling-target PUT (§4.2)
+// returns everything here EXCEPT calls_this_week, so the frontend merges its response
+// into this sub-object without re-fetching the whole dashboard.
+export type ColdCallingState = {
+  calls_this_week: number;
+  suggested_target: number;
+  effective_target: number;
+  override_active: boolean;
+  iso_week: string; // 'YYYY-Www'
+  reason: string;
+};
+
+// PUT /api/admin/cold-calling-target response (§4.2) — drops into ColdCallingState
+// (calls_this_week is preserved client-side, as a target change doesn't move it).
+export type ColdCallingTargetResponse = {
+  effective_target: number;
+  override_active: boolean;
+  iso_week: string;
+  suggested_target: number;
+  reason: string;
+};
+
 export type DashboardResponse = {
   funnel: {
     leads: { total: number; this_week_delta: number; callable_now: number };
@@ -637,14 +659,7 @@ export type DashboardResponse = {
     };
   };
   stations: {
-    cold_calling: {
-      calls_this_week: number;
-      suggested_target: number;
-      effective_target: number;
-      override_active: boolean;
-      iso_week: string; // 'YYYY-Www'
-      reason: string;
-    };
+    cold_calling: ColdCallingState;
     today_appointments: {
       is_weekday: boolean;
       slots: DashboardTodaySlot[];
