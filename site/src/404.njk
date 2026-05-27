@@ -1,12 +1,17 @@
 ---
 layout: layouts/base.njk
 title: Page not found
-description: The page you requested could not be found.
+description: The page you were looking for doesn't exist.
 permalink: /404.html
 eleventyExcludeFromCollections: true
 ---
 
-<section class="container">
-  <h1>Page not found</h1>
-  <p>That page doesn’t exist. <a href="/">Return home</a>.</p>
-</section>
+<section class="notfound"><div class="wrap">
+  <div class="ey">404</div>
+  <h1 class="h1">That page <em>isn't</em> here.</h1>
+  <p>Either it was moved, or it never existed. Either way, the rest of the site is still standing.</p>
+  <div class="actions">
+    <a href="/" class="cta-light">Back to the home page</a>
+    <a href="/articles/">Read what we've been writing</a>
+  </div>
+</div></section>
