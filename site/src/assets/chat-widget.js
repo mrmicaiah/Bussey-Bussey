@@ -139,7 +139,7 @@
         renderMessages();
       })
       .catch(function () {
-        replacePlaceholder('Sorry — chat is unavailable right now. Please email us at hello@busseyandbussey.com.');
+        replacePlaceholder('Sorry — the chat is unavailable right now. Please try again in a few minutes.');
       });
   }
 
@@ -180,7 +180,7 @@
         replacePlaceholder((data.assistant && data.assistant.content) || '(no response)');
       })
       .catch(function (err) {
-        replacePlaceholder('Sorry — something went wrong. Try again, or email us at hello@busseyandbussey.com.');
+        replacePlaceholder('Sorry — something went wrong. Please try again.');
       })
       .finally(function () {
         state.sending = false;
