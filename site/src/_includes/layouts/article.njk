@@ -9,7 +9,7 @@ layout: layouts/base.njk
       <h1 class="h1">{{ title }}</h1>
       <div class="article-meta">
         <span class="article-date">{{ page.date | date }}</span>
-        <span class="article-sep">·</span>
+        <span class="article-sep">&middot;</span>
         <span class="article-author">{{ author or "Bussey and Bussey" }}</span>
       </div>
     </div>
@@ -26,7 +26,8 @@ layout: layouts/base.njk
     <h2 class="h2">Other writing from the firm</h2>
     <div class="rule"></div>
     <div class="related-rows">
-      {%- for post in others | batch(3) | first -%}
+      {%- for post in others -%}
+        {%- if loop.index <= 3 -%}
         <a class="related-row" href="{{ post.url }}">
           <div class="related-row-tag">Article</div>
           <div class="related-row-body">
@@ -34,9 +35,21 @@ layout: layouts/base.njk
             {% if post.data.summary %}<p>{{ post.data.summary }}</p>{% endif %}
           </div>
         </a>
+        {%- endif -%}
       {%- endfor -%}
     </div>
   </div></section>
   {%- endif -%}
+
+  <section class="climax">
+    <img class="climax-bg" src="https://res.cloudinary.com/dxzw1zwez/image/upload/c_fill,w_2000,q_auto,f_auto/v1779656075/provocative_moasyf.jpg" alt="A dark, dramatic sky" loading="lazy" />
+    <div class="wrap">
+      <div class="se">Next step</div>
+      <h2 class="h2">Found something here that sounds like you?</h2>
+      <div class="rule"></div>
+      <p>Tell our agent what's going on. We'll dig in and find what's actually costing you &mdash; before anyone talks about money.</p>
+      <a href="/#chat" class="cta">Start the conversation &#8594;</a>
+    </div>
+  </section>
 
 </article>
