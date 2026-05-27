@@ -1,6 +1,8 @@
 import type { HandlerContext } from '../../types/route';
+import type { Env } from '../../types/env';
 import { json } from '../../lib/responses';
-import { writeAudit, shallowDiff } from '../../lib/audit';
+import { writeAudit, shallowDiff, type AuditEntry } from '../../lib/audit';
+import type { CreateBuild, AuditActor } from '../../lib/tx';
 
 type ClientRow = {
   id: string;
@@ -57,6 +59,83 @@ export async function getClient(ctx: HandlerContext): Promise<Response> {
   return json({ client: row });
 }
 
+/** Validated params for creating a client (caller does request parsing + validation). */
+export type ClientCreateParams = {
+  company_name: string;
+  primary_contact_name: string | null;
+  primary_contact_email: string | null;
+  primary_contact_phone: string | null;
+  industry: string | null;
+  billing_address: string | null;
+  status: string; // already validated against CLIENT_STATUSES by the caller
+  origin_lead_id: string | null;
+  notes: string | null;
+};
+
+/**
+ * CORE of client creation — shared by the standalone POST /api/admin/clients
+ * handler and the leads-wizard booking transaction. Builds the client INSERT
+ * (+ the lead status='converted' flip when converting) and the matching audit
+ * entries, returning them composable. Does NOT touch the request or run anything.
+ * `originLeadStatus` is the converting lead's current status (for the lead.convert
+ * audit's from→to); pass null when not converting.
+ */
+export function buildClientCreate(
+  env: Env,
+  params: ClientCreateParams,
+  actor: AuditActor,
+  originLeadStatus: string | null,
+): CreateBuild {
+  const id = crypto.randomUUID();
+  const fields = { id, ...params };
+
+  const statements: D1PreparedStatement[] = [
+    env.DB.prepare(
+      `INSERT INTO client (id, company_name, primary_contact_name, primary_contact_email, primary_contact_phone, industry, billing_address, status, origin_lead_id, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      id,
+      params.company_name,
+      params.primary_contact_name,
+      params.primary_contact_email,
+      params.primary_contact_phone,
+      params.industry,
+      params.billing_address,
+      params.status,
+      params.origin_lead_id,
+      params.notes,
+    ),
+  ];
+  const audits: AuditEntry[] = [
+    {
+      actorType: 'admin_user',
+      actorId: actor.id,
+      action: params.origin_lead_id ? 'client.create.from_lead' : 'client.create',
+      entityType: 'client',
+      entityId: id,
+      changes: fields,
+      ipAddress: actor.ip,
+      userAgent: actor.ua,
+    },
+  ];
+  if (params.origin_lead_id) {
+    statements.push(
+      env.DB.prepare(`UPDATE lead SET status = 'converted' WHERE id = ?`).bind(params.origin_lead_id),
+    );
+    audits.push({
+      actorType: 'admin_user',
+      actorId: actor.id,
+      action: 'lead.convert',
+      entityType: 'lead',
+      entityId: params.origin_lead_id,
+      changes: { status: { from: originLeadStatus, to: 'converted' }, converted_to_client_id: id },
+      ipAddress: actor.ip,
+      userAgent: actor.ua,
+    });
+  }
+  return { id, statements, audits };
+}
+
 export async function createClient(ctx: HandlerContext): Promise<Response> {
   if (!ctx.session) return json({ error: 'unauthenticated' }, { status: 401 });
   const body = await readJsonObject(ctx.request);
@@ -65,7 +144,6 @@ export async function createClient(ctx: HandlerContext): Promise<Response> {
   const company_name = stringOrNull(body['company_name']);
   if (!company_name) return json({ error: 'company_name_required' }, { status: 400 });
 
-  const id = crypto.randomUUID();
   const status = typeof body['status'] === 'string' ? body['status'] : 'prospect';
   if (!CLIENT_STATUSES.has(status)) return json({ error: 'invalid_status' }, { status: 400 });
 
@@ -78,69 +156,28 @@ export async function createClient(ctx: HandlerContext): Promise<Response> {
     if (!leadBefore) return json({ error: 'origin_lead_not_found' }, { status: 400 });
   }
 
-  const fields = {
-    id,
-    company_name,
-    primary_contact_name: stringOrNull(body['primary_contact_name']),
-    primary_contact_email: stringOrNull(body['primary_contact_email']),
-    primary_contact_phone: stringOrNull(body['primary_contact_phone']),
-    industry: stringOrNull(body['industry']),
-    billing_address: stringOrNull(body['billing_address']),
-    status,
-    origin_lead_id,
-    notes: stringOrNull(body['notes']),
-  };
+  const core = buildClientCreate(
+    ctx.env,
+    {
+      company_name,
+      primary_contact_name: stringOrNull(body['primary_contact_name']),
+      primary_contact_email: stringOrNull(body['primary_contact_email']),
+      primary_contact_phone: stringOrNull(body['primary_contact_phone']),
+      industry: stringOrNull(body['industry']),
+      billing_address: stringOrNull(body['billing_address']),
+      status,
+      origin_lead_id,
+      notes: stringOrNull(body['notes']),
+    },
+    { id: ctx.session.subjectId, ip: ctx.session.ipAddress, ua: ctx.session.userAgent },
+    leadBefore?.status ?? null,
+  );
 
-  // Insert client + (if conversion) update lead status atomically via batch().
-  const stmts: D1PreparedStatement[] = [
-    ctx.env.DB.prepare(
-      `INSERT INTO client (id, company_name, primary_contact_name, primary_contact_email, primary_contact_phone, industry, billing_address, status, origin_lead_id, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(
-      fields.id,
-      fields.company_name,
-      fields.primary_contact_name,
-      fields.primary_contact_email,
-      fields.primary_contact_phone,
-      fields.industry,
-      fields.billing_address,
-      fields.status,
-      fields.origin_lead_id,
-      fields.notes,
-    ),
-  ];
-  if (origin_lead_id) {
-    stmts.push(
-      ctx.env.DB.prepare(`UPDATE lead SET status = 'converted' WHERE id = ?`).bind(origin_lead_id),
-    );
-  }
-  await ctx.env.DB.batch(stmts);
+  // Same execution as before: data writes in one batch, then audit each entry.
+  await ctx.env.DB.batch(core.statements);
+  for (const a of core.audits) await writeAudit(ctx.env, a);
 
-  await writeAudit(ctx.env, {
-    actorType: 'admin_user',
-    actorId: ctx.session.subjectId,
-    action: origin_lead_id ? 'client.create.from_lead' : 'client.create',
-    entityType: 'client',
-    entityId: id,
-    changes: fields,
-    ipAddress: ctx.session.ipAddress,
-    userAgent: ctx.session.userAgent,
-  });
-
-  if (origin_lead_id && leadBefore) {
-    await writeAudit(ctx.env, {
-      actorType: 'admin_user',
-      actorId: ctx.session.subjectId,
-      action: 'lead.convert',
-      entityType: 'lead',
-      entityId: origin_lead_id,
-      changes: { status: { from: leadBefore.status, to: 'converted' }, converted_to_client_id: id },
-      ipAddress: ctx.session.ipAddress,
-      userAgent: ctx.session.userAgent,
-    });
-  }
-
-  const row = await ctx.env.DB.prepare(`SELECT * FROM client WHERE id = ?`).bind(id).first<ClientRow>();
+  const row = await ctx.env.DB.prepare(`SELECT * FROM client WHERE id = ?`).bind(core.id).first<ClientRow>();
   return json({ client: row }, { status: 201 });
 }
 

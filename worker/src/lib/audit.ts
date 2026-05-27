@@ -24,23 +24,31 @@ export type AuditEntry = {
   userAgent?: string | null;
 };
 
-export async function writeAudit(env: Env, entry: AuditEntry): Promise<void> {
-  await env.DB.prepare(
+/**
+ * Build the audit_log INSERT as a prepared statement WITHOUT running it, so it
+ * can be composed into a larger atomic DB.batch (e.g. the booking transaction).
+ * `writeAudit` is the run-it-now wrapper over this — both share this one INSERT
+ * definition so the row shape can never drift between callers.
+ */
+export function auditStatement(env: Env, entry: AuditEntry): D1PreparedStatement {
+  return env.DB.prepare(
     `INSERT INTO audit_log (id, actor_type, actor_id, action, entity_type, entity_id, changes, ip_address, user_agent)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(
-      crypto.randomUUID(),
-      entry.actorType,
-      entry.actorId,
-      entry.action,
-      entry.entityType,
-      entry.entityId,
-      entry.changes !== undefined ? JSON.stringify(entry.changes) : null,
-      entry.ipAddress ?? null,
-      entry.userAgent ?? null,
-    )
-    .run();
+  ).bind(
+    crypto.randomUUID(),
+    entry.actorType,
+    entry.actorId,
+    entry.action,
+    entry.entityType,
+    entry.entityId,
+    entry.changes !== undefined ? JSON.stringify(entry.changes) : null,
+    entry.ipAddress ?? null,
+    entry.userAgent ?? null,
+  );
+}
+
+export async function writeAudit(env: Env, entry: AuditEntry): Promise<void> {
+  await auditStatement(env, entry).run();
 }
 
 /**

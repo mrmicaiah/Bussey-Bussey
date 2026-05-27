@@ -1,5 +1,8 @@
 import type { HandlerContext } from '../../types/route';
 import { json } from '../../lib/responses';
+import { auditStatement, type AuditEntry } from '../../lib/audit';
+import { buildClientCreate } from './clients';
+import { buildOpportunityCreate } from './opportunities';
 
 /**
  * Studio44 Layer 1 — leads-wizard endpoints.
@@ -9,12 +12,15 @@ import { json } from '../../lib/responses';
  *   GET  /api/admin/leads/:id/card        — full call-card payload + activity timeline
  *   GET  /api/admin/script-variants       — active variants by stage + usage rollups
  *
- * WRITE (step 4 — non-booking outcomes only, spec §2.4 / §4.1 / §4.4):
+ * WRITE (spec §2.4 / §4.1 / §4.4 / §5.1):
  *   POST /api/admin/leads/:id/activity    — log a non-booking call outcome (atomic)
+ *   POST /api/admin/leads/:id/book        — the one-motion booking transaction (atomic)
  *
- * The BOOKING outcome is NOT handled here — that one-motion transaction
- * (client + opportunity + assessment) is step 5. This module never creates a
- * client, opportunity, or assessment.
+ * The booking endpoint silently runs the Lead→Prospect conversion (client +
+ * opportunity) and places assessment #1, reusing the EXTRACTED cores
+ * (buildClientCreate / buildOpportunityCreate) composed into a single DB.batch —
+ * the same cores the standalone /clients and /opportunities POSTs use, so business
+ * logic is not duplicated.
  *
  * Auth is enforced upstream by the `/api/admin/` gate in src/index.ts, which
  * threads a verified admin SessionRecord into ctx.session; the `if (!ctx.session)`
@@ -552,4 +558,249 @@ function stringOrNull(v: unknown): string | null {
 function optionalNonNegativeInt(v: unknown): number | null {
   if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return null;
   return Math.floor(v);
+}
+
+// ─── 5. Book an assessment — the one-motion transaction (WRITE — atomic) ───────
+//
+// POST /api/admin/leads/:id/book
+//
+// "Book assessment for lead X at datetime T." The money moment (§5.1). In ONE
+// DB.batch (all-or-nothing) it silently runs the Lead→Prospect conversion and
+// places assessment #1 — the operator never sees "create client/opportunity".
+//
+// All new row ids are app-generated UUIDs known BEFORE the batch, so the
+// activity↔assessment FK (assessment.booked_from_activity_id → lead_activity.id)
+// is set with no read-back: insert the activity earlier in the array, reference its
+// known id from the assessment insert later in the same array. D1 runs the batch
+// sequentially in one transaction, so parent rows exist by the time FKs are checked.
+//
+// stmts[] ordering (FK-safe):
+//   1. client INSERT                         (buildClientCreate)
+//   2. lead UPDATE status='converted'        (buildClientCreate, conversion arm)
+//   3. opportunity INSERT                    (buildOpportunityCreate; FK client_id ✓)
+//   4. lead UPDATE last_contacted_at + attempt_count+1   (calling columns)
+//   5. lead_activity INSERT (kind='booked')  (FK lead + script_variant ✓)
+//   6. assessment INSERT (booked_from_activity_id = activity id from #5)
+//   7. script_variant_usage INSERT × non-null variants (outcome='booked')
+//   8. (optional) calling_list_item UPDATE — keep the two systems from drifting
+//   9. audit INSERTs (client.create.from_lead, lead.convert, opportunity.create,
+//      lead.booked, assessment.create, [calling_list_item.*]) — inlined into the batch
+//
+// Opportunity value columns are intentionally left NULL — value is Alice's job (L4),
+// not an operator input (operator decision; §2.3). No value is written here.
+
+export async function bookAssessmentHandler(ctx: HandlerContext): Promise<Response> {
+  if (!ctx.session) return json({ error: 'unauthenticated' }, { status: 401 });
+  const id = ctx.params['id'];
+  if (!id) return json({ error: 'invalid_id' }, { status: 400 });
+
+  const body = await readJsonObject(ctx.request);
+  if (!body) return json({ error: 'invalid_request' }, { status: 400 });
+
+  const scheduledAt = stringOrNull(body['scheduled_at']);
+  if (!scheduledAt) return json({ error: 'scheduled_at_required' }, { status: 400 });
+
+  const cardDwellMs = optionalNonNegativeInt(body['card_dwell_ms']);
+  const phoneDurationS = optionalNonNegativeInt(body['phone_duration_s']);
+  const sessionId = stringOrNull(body['session_id']);
+  const notes = stringOrNull(body['notes']);
+  const variants = {
+    opener: stringOrNull(body['opener_variant_id']),
+    hook: stringOrNull(body['hook_variant_id']),
+    discovery: stringOrNull(body['discovery_variant_id']),
+    close: stringOrNull(body['close_variant_id']),
+  };
+
+  const lead = await ctx.env.DB.prepare(
+    `SELECT id, name, email, phone, company, industry, status, attempt_count FROM lead WHERE id = ?`,
+  )
+    .bind(id)
+    .first<{
+      id: string;
+      name: string | null;
+      email: string | null;
+      phone: string | null;
+      company: string | null;
+      industry: string | null;
+      status: string;
+      attempt_count: number;
+    }>();
+  if (!lead) return json({ error: 'not_found' }, { status: 404 });
+  if (lead.status === 'converted') return json({ error: 'already_converted' }, { status: 409 });
+
+  // calling-list drift: if this lead came from a calling_list_item, make sure that
+  // item is in its terminal converted state so it stays out of the calling pool.
+  // (The enum has no prospect-specific value; 'converted_to_lead' is the terminal
+  // that already removes it — see report. Almost always already set.)
+  const callingItem = await ctx.env.DB.prepare(
+    `SELECT id, status FROM calling_list_item WHERE converted_lead_id = ? LIMIT 1`,
+  )
+    .bind(id)
+    .first<{ id: string; status: string }>();
+
+  const now = new Date().toISOString();
+  const actor = { id: ctx.session.subjectId, ip: ctx.session.ipAddress, ua: ctx.session.userAgent };
+  const companyName = lead.company ?? lead.name ?? lead.email ?? 'Unknown company';
+  const attemptNumber = lead.attempt_count + 1;
+  const activityId = crypto.randomUUID();
+  const assessmentId = crypto.randomUUID();
+
+  // Cores (reused — same logic as the standalone /clients and /opportunities POSTs).
+  const clientCore = buildClientCreate(
+    ctx.env,
+    {
+      company_name: companyName,
+      primary_contact_name: lead.name,
+      primary_contact_email: lead.email,
+      primary_contact_phone: lead.phone,
+      industry: lead.industry,
+      billing_address: null,
+      status: 'prospect',
+      origin_lead_id: id,
+      notes: `Auto-created on booking an assessment (${now.slice(0, 10)}).`,
+    },
+    actor,
+    lead.status,
+  );
+  const oppCore = buildOpportunityCreate(
+    ctx.env,
+    {
+      client_id: clientCore.id, // known up-front; FK resolves within the batch
+      name: `${companyName} — assessment`,
+      description: null, // value_setup/value_monthly intentionally left NULL (Alice, L4)
+      owner_user_id: ctx.session.subjectId,
+    },
+    actor,
+  );
+
+  const stmts: D1PreparedStatement[] = [];
+
+  // 1–2. client (+ lead status='converted')
+  stmts.push(...clientCore.statements);
+  // 3. opportunity (open) on the new client
+  stmts.push(...oppCore.statements);
+  // 4. lead calling columns (status already flipped to 'converted' by the client core)
+  stmts.push(
+    ctx.env.DB.prepare(
+      `UPDATE lead SET last_contacted_at = ?, attempt_count = attempt_count + 1 WHERE id = ?`,
+    ).bind(now, id),
+  );
+  // 5. lead_activity (kind='booked') — MUST precede the assessment (FK target)
+  stmts.push(
+    ctx.env.DB.prepare(
+      `INSERT INTO lead_activity
+         (id, lead_id, kind, outcome, attempt_number, industry_at_time,
+          opener_variant_id, hook_variant_id, discovery_variant_id, close_variant_id,
+          card_dwell_ms, phone_duration_s, session_id, notes, created_by_user_id)
+       VALUES (?, ?, 'booked', 'booked', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      activityId,
+      id,
+      attemptNumber,
+      lead.industry,
+      variants.opener,
+      variants.hook,
+      variants.discovery,
+      variants.close,
+      cardDwellMs,
+      phoneDurationS,
+      sessionId,
+      notes,
+      actor.id,
+    ),
+  );
+  // 6. assessment #1 — booked_from_activity_id = the activity id above (no read-back)
+  stmts.push(
+    ctx.env.DB.prepare(
+      `INSERT INTO assessment
+         (id, opportunity_id, scheduled_at, status, sequence_number, booked_from_activity_id, created_by_user_id)
+       VALUES (?, ?, ?, 'booked', 1, ?, ?)`,
+    ).bind(assessmentId, oppCore.id, scheduledAt, activityId, actor.id),
+  );
+  // 7. script_variant_usage — one per non-null variant, outcome='booked' (makes book-rate real)
+  for (const vid of [variants.opener, variants.hook, variants.discovery, variants.close]) {
+    if (!vid) continue;
+    stmts.push(
+      ctx.env.DB.prepare(
+        `INSERT INTO script_variant_usage (id, variant_id, lead_id, activity_id, outcome)
+         VALUES (?, ?, ?, ?, 'booked')`,
+      ).bind(crypto.randomUUID(), vid, id, activityId),
+    );
+  }
+
+  // Audits — core audits + booking-specific, all inlined into the same batch.
+  const audits: AuditEntry[] = [
+    ...clientCore.audits,
+    ...oppCore.audits,
+    {
+      actorType: 'admin_user',
+      actorId: actor.id,
+      action: 'lead.booked',
+      entityType: 'lead',
+      entityId: id,
+      changes: {
+        activity_id: activityId,
+        assessment_id: assessmentId,
+        client_id: clientCore.id,
+        opportunity_id: oppCore.id,
+        scheduled_at: scheduledAt,
+        attempt_number: attemptNumber,
+        session_id: sessionId,
+        card_dwell_ms: cardDwellMs,
+      },
+      ipAddress: actor.ip,
+      userAgent: actor.ua,
+    },
+    {
+      actorType: 'admin_user',
+      actorId: actor.id,
+      action: 'assessment.create',
+      entityType: 'assessment',
+      entityId: assessmentId,
+      changes: {
+        opportunity_id: oppCore.id,
+        scheduled_at: scheduledAt,
+        sequence_number: 1,
+        booked_from_activity_id: activityId,
+      },
+      ipAddress: actor.ip,
+      userAgent: actor.ua,
+    },
+  ];
+
+  // 8. calling-list drift guard (only if linked + not already terminal).
+  if (callingItem && callingItem.status !== 'converted_to_lead') {
+    stmts.push(
+      ctx.env.DB.prepare(`UPDATE calling_list_item SET status = 'converted_to_lead' WHERE id = ?`).bind(
+        callingItem.id,
+      ),
+    );
+    audits.push({
+      actorType: 'admin_user',
+      actorId: actor.id,
+      action: 'calling_list_item.prospect_booked',
+      entityType: 'calling_list_item',
+      entityId: callingItem.id,
+      changes: { status: { from: callingItem.status, to: 'converted_to_lead' }, booked_lead_id: id },
+      ipAddress: actor.ip,
+      userAgent: actor.ua,
+    });
+  }
+
+  // 9. audit INSERTs last (no FK dependencies).
+  for (const a of audits) stmts.push(auditStatement(ctx.env, a));
+
+  await ctx.env.DB.batch(stmts);
+
+  return json(
+    {
+      ok: true,
+      lead_id: id,
+      client_id: clientCore.id,
+      opportunity_id: oppCore.id,
+      assessment_id: assessmentId,
+      activity_id: activityId,
+    },
+    { status: 201 },
+  );
 }

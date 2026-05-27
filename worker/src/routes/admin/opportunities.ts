@@ -1,7 +1,9 @@
 import type { HandlerContext } from '../../types/route';
+import type { Env } from '../../types/env';
 import { json } from '../../lib/responses';
-import { writeAudit, shallowDiff } from '../../lib/audit';
+import { writeAudit, shallowDiff, type AuditEntry } from '../../lib/audit';
 import { randomBase64Url } from '../../lib/random';
+import type { CreateBuild, AuditActor } from '../../lib/tx';
 
 type OpportunityRow = {
   id: string;
@@ -72,6 +74,58 @@ export async function getOpportunity(ctx: HandlerContext): Promise<Response> {
   return json({ opportunity: row });
 }
 
+/** Validated params for creating an opportunity (caller resolves owner + validates). */
+export type OpportunityCreateParams = {
+  client_id: string;
+  name: string;
+  description: string | null;
+  owner_user_id: string;
+};
+
+/**
+ * CORE of opportunity creation — shared by the standalone POST
+ * /api/admin/opportunities handler and the leads-wizard booking transaction.
+ * Generates the presentation_token, leaves value columns NULL, and returns the
+ * INSERT + audit composable. The caller is responsible for confirming the client
+ * exists (the FK enforces it within the batch regardless).
+ */
+export function buildOpportunityCreate(
+  env: Env,
+  params: OpportunityCreateParams,
+  actor: AuditActor,
+): CreateBuild {
+  const id = crypto.randomUUID();
+  const presentation_token = randomBase64Url(24);
+  const fields = {
+    id,
+    client_id: params.client_id,
+    name: params.name,
+    description: params.description,
+    status: 'open' as const,
+    presentation_token,
+    owner_user_id: params.owner_user_id,
+  };
+  const statements: D1PreparedStatement[] = [
+    env.DB.prepare(
+      `INSERT INTO opportunity (id, client_id, name, description, status, presentation_token, owner_user_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(id, params.client_id, params.name, params.description, 'open', presentation_token, params.owner_user_id),
+  ];
+  const audits: AuditEntry[] = [
+    {
+      actorType: 'admin_user',
+      actorId: actor.id,
+      action: 'opportunity.create',
+      entityType: 'opportunity',
+      entityId: id,
+      changes: fields,
+      ipAddress: actor.ip,
+      userAgent: actor.ua,
+    },
+  ];
+  return { id, statements, audits };
+}
+
 export async function createOpportunity(ctx: HandlerContext): Promise<Response> {
   if (!ctx.session) return json({ error: 'unauthenticated' }, { status: 401 });
   const body = await readJsonObject(ctx.request);
@@ -88,42 +142,23 @@ export async function createOpportunity(ctx: HandlerContext): Promise<Response> 
     .first<{ id: string }>();
   if (!clientExists) return json({ error: 'client_not_found' }, { status: 404 });
 
-  const id = crypto.randomUUID();
-  const presentation_token = randomBase64Url(24);
-  const description = stringOrNull(body['description']);
   const ownerCandidate = stringOrNull(body['owner_user_id']);
-  const owner_user_id = ownerCandidate ?? ctx.session.subjectId;
+  const core = buildOpportunityCreate(
+    ctx.env,
+    {
+      client_id,
+      name,
+      description: stringOrNull(body['description']),
+      owner_user_id: ownerCandidate ?? ctx.session.subjectId,
+    },
+    { id: ctx.session.subjectId, ip: ctx.session.ipAddress, ua: ctx.session.userAgent },
+  );
 
-  const fields = {
-    id,
-    client_id,
-    name,
-    description,
-    status: 'open' as const,
-    presentation_token,
-    owner_user_id,
-  };
-
-  await ctx.env.DB.prepare(
-    `INSERT INTO opportunity (id, client_id, name, description, status, presentation_token, owner_user_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(fields.id, fields.client_id, fields.name, fields.description, fields.status, fields.presentation_token, fields.owner_user_id)
-    .run();
-
-  await writeAudit(ctx.env, {
-    actorType: 'admin_user',
-    actorId: ctx.session.subjectId,
-    action: 'opportunity.create',
-    entityType: 'opportunity',
-    entityId: id,
-    changes: fields,
-    ipAddress: ctx.session.ipAddress,
-    userAgent: ctx.session.userAgent,
-  });
+  await ctx.env.DB.batch(core.statements);
+  for (const a of core.audits) await writeAudit(ctx.env, a);
 
   const row = await ctx.env.DB.prepare(`SELECT * FROM opportunity WHERE id = ?`)
-    .bind(id)
+    .bind(core.id)
     .first<OpportunityRow>();
   return json({ opportunity: row }, { status: 201 });
 }

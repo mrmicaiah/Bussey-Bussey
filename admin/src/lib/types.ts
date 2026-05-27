@@ -366,3 +366,27 @@ export type LogActivityResponse = {
     is_dead_number: number;
   };
 };
+
+// ── Studio44 Layer 1 — step 5: the booking transaction (the money moment) ─────
+// No value field — value is Alice's job (L4); the opportunity's value columns
+// are created NULL. The operator sends only date/time + call context.
+export type BookingRequest = {
+  scheduled_at: string; // required — assessment date/time
+  session_id?: string | null;
+  card_dwell_ms?: number | null;
+  phone_duration_s?: number | null;
+  opener_variant_id?: string | null;
+  hook_variant_id?: string | null;
+  discovery_variant_id?: string | null;
+  close_variant_id?: string | null;
+  notes?: string | null;
+};
+
+export type BookingResponse = {
+  ok: true;
+  lead_id: string;
+  client_id: string;
+  opportunity_id: string;
+  assessment_id: string;
+  activity_id: string;
+};

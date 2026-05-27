@@ -27,6 +27,8 @@
     NonBookingOutcome,
     LogActivityRequest,
     LogActivityResponse,
+    BookingRequest,
+    BookingResponse,
   } from '$lib/types';
   import SessionSetup from '$lib/components/leads-wizard/SessionSetup.svelte';
   import CallCard from '$lib/components/leads-wizard/CallCard.svelte';
@@ -53,8 +55,14 @@
   let posting = $state(false);
   let postError = $state<string | null>(null);
 
-  // Scoreboard stays 0 in step 3 — booking does not persist yet.
-  const bookedCount = 0;
+  // Scoreboard — real now: incremented on a successful booking.
+  let bookedCount = $state(0);
+
+  // Booking-step state.
+  let bookScheduledAt = $state('');
+  let bookingPosting = $state(false);
+  let bookingError = $state<string | null>(null);
+  let toast = $state<string | null>(null);
 
   // Card-dwell timer. One interval for the page lifetime; dwellStart resets per card.
   let dwellStart = $state(Date.now());
@@ -184,8 +192,48 @@
   }
 
   function handleBook() {
-    // Booking transaction is step 5 — show a placeholder, persist nothing.
+    bookScheduledAt = '';
+    bookingError = null;
     phase = 'booking';
+  }
+
+  function localDatetime(daysAhead: number, hour = 10): string {
+    const d = new Date();
+    d.setDate(d.getDate() + daysAhead);
+    d.setHours(hour, 0, 0, 0);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
+  // The money moment: one atomic POST → silent Lead→Prospect + assessment #1.
+  // Tick the scoreboard + advance ON SUCCESS; on failure show an inline error and
+  // do NOT advance (mirrors the step-4 no-silent-loss behavior).
+  async function confirmBooking() {
+    if (bookingPosting || !card || !bookScheduledAt) return;
+    bookingPosting = true;
+    bookingError = null;
+    const dwell = dwellMs; // real card→book dwell
+    try {
+      const reqBody: BookingRequest = {
+        scheduled_at: bookScheduledAt,
+        session_id: session?.id ?? null,
+        card_dwell_ms: dwell,
+        opener_variant_id: selected.opener,
+        hook_variant_id: selected.hook,
+        discovery_variant_id: selected.discovery,
+        close_variant_id: selected.close,
+      };
+      await api.post<BookingResponse>(`/api/admin/leads/${card.id}/book`, reqBody);
+      bookedCount += 1;
+      toast = 'Assessment booked.';
+      setTimeout(() => (toast = null), 2500);
+      bookScheduledAt = '';
+      advance(); // straight back into the loop, next card
+    } catch (e) {
+      bookingError = e instanceof ApiError ? `Couldn't book (${e.errorCode ?? e.status}).` : 'Network error.';
+    } finally {
+      bookingPosting = false;
+    }
   }
 
   function endSession() {
@@ -195,6 +243,7 @@
     card = null;
     timeline = [];
     index = 0;
+    bookedCount = 0;
   }
 </script>
 
@@ -260,20 +309,45 @@
     {:else if phase === 'booking'}
       <div class="booking">
         <h2>Book the assessment{card?.company ? ` · ${card.company}` : ''}</h2>
-        <div class="booking-placeholder">
-          <p class="ph-title">Booking step — wires in a later step</p>
-          <p class="ph-note">
-            Date/time pick, the two close-time quick-picks, the Alice-owned value panel, and the
-            one-motion booking (lead → prospect, client + opportunity, assessment #1) all land in
-            step 5. Nothing is created yet.
-          </p>
+        <p class="booking-lede">Just pick a time. The rest happens for you.</p>
+
+        <div class="book-field">
+          <span class="book-label">When</span>
+          <div class="book-quick">
+            <button type="button" onclick={() => (bookScheduledAt = localDatetime(1, 10))} disabled={bookingPosting}>Tomorrow 10am</button>
+            <button type="button" onclick={() => (bookScheduledAt = localDatetime(2, 14))} disabled={bookingPosting}>In 2 days, 2pm</button>
+          </div>
+          <input type="datetime-local" bind:value={bookScheduledAt} disabled={bookingPosting} aria-label="Assessment date and time" />
         </div>
+
+        <!-- Value is Alice's job (L4) — dormant, not an operator input. -->
+        <div class="alice-value" aria-label="Deal value (inactive)">
+          <div class="av-head"><span class="av-tag">Value</span><span class="av-l4">Alice · L4</span></div>
+          <p class="av-note">Alice derives the deal value from the rate card after the assessment. Not your call to make here.</p>
+        </div>
+
+        <!-- Reassurance, not steps. Never framed as operator actions. -->
+        <div class="behind">
+          <div class="behind-title">Happening behind the scenes</div>
+          <ul>
+            <li>This lead becomes a <strong>prospect</strong></li>
+            <li>Their workspace is set up</li>
+            <li>Assessment #1 is placed on the calendar</li>
+          </ul>
+        </div>
+
+        {#if bookingError}<div class="cardErr">{bookingError}</div>{/if}
+
         <div class="booking-actions">
-          <button type="button" class="ghost" onclick={() => (phase = 'card')}>← Back to the call</button>
-          <button type="button" class="primary" onclick={advance}>Next lead →</button>
+          <button type="button" class="ghost" onclick={() => (phase = 'card')} disabled={bookingPosting}>← Back to the call</button>
+          <button type="button" class="primary" onclick={confirmBooking} disabled={bookingPosting || !bookScheduledAt}>
+            {bookingPosting ? 'Booking…' : 'Confirm booking & next lead'}
+          </button>
         </div>
       </div>
     {/if}
+
+    {#if toast}<div class="toast">{toast}</div>{/if}
   {/if}
 </div>
 
@@ -325,14 +399,47 @@
   }
   .cardErr button { background: none; border: none; color: var(--s44-crimson); cursor: pointer; font: inherit; text-decoration: underline; }
 
-  .booking { max-width: 620px; }
-  .booking h2 { color: var(--s44-text); margin: 0 0 1rem; }
-  .booking-placeholder {
-    border: 1px dashed var(--s44-border); border-radius: 10px; padding: 1.1rem 1rem; background: var(--s44-surface);
+  .booking { max-width: 560px; }
+  .booking h2 { color: var(--s44-text); margin: 0 0 0.25rem; }
+  .booking-lede { color: var(--s44-muted); margin: 0 0 1.25rem; }
+
+  .book-field { margin-bottom: 1.1rem; }
+  .book-label { display: block; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--s44-muted); margin-bottom: 0.5rem; }
+  .book-quick { display: flex; gap: 0.5rem; margin-bottom: 0.6rem; }
+  .book-quick button {
+    flex: 1; cursor: pointer; font: inherit; font-size: 0.85rem;
+    background: var(--s44-surface-2); color: var(--s44-text);
+    border: 1px solid var(--s44-border); border-radius: 8px; padding: 0.55rem;
   }
-  .ph-title { margin: 0 0 0.4rem; color: var(--s44-crimson); font-weight: 700; }
-  .ph-note { margin: 0; color: var(--s44-muted); font-size: 0.88rem; line-height: 1.5; }
-  .booking-actions { display: flex; justify-content: space-between; margin-top: 1.1rem; gap: 0.8rem; }
+  .book-quick button:hover { border-color: var(--s44-crimson); }
+  .book-quick button:disabled { opacity: 0.55; cursor: not-allowed; }
+  .book-field input {
+    width: 100%; font: inherit; background: var(--s44-surface); color: var(--s44-text);
+    border: 1px solid var(--s44-border); border-radius: 8px; padding: 0.5rem 0.6rem;
+  }
+
+  .alice-value {
+    border: 1px dashed var(--s44-border); border-radius: 10px; padding: 0.8rem 0.9rem; margin-bottom: 1.1rem;
+    background: repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(255,255,255,0.012) 8px, rgba(255,255,255,0.012) 16px);
+  }
+  .av-head { display: flex; align-items: baseline; gap: 0.5rem; }
+  .av-tag { font-weight: 700; color: var(--s44-text); }
+  .av-l4 { font-size: 0.72rem; color: var(--s44-muted); border: 1px solid var(--s44-border); border-radius: 999px; padding: 0.05rem 0.45rem; }
+  .av-note { margin: 0.35rem 0 0; color: var(--s44-muted); font-size: 0.82rem; line-height: 1.45; }
+
+  .behind { border: 1px solid var(--s44-border); border-radius: 10px; padding: 0.8rem 0.9rem; background: var(--s44-surface); margin-bottom: 1.1rem; }
+  .behind-title { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--s44-muted); margin-bottom: 0.4rem; }
+  .behind ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+  .behind li { color: var(--s44-muted); font-size: 0.88rem; }
+  .behind strong { color: var(--s44-crimson); }
+
+  .booking-actions { display: flex; justify-content: space-between; margin-top: 0.5rem; gap: 0.8rem; }
+
+  .toast {
+    position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 60;
+    background: var(--s44-crimson); color: #fff; font-weight: 600; font-size: 0.9rem;
+    padding: 0.6rem 1rem; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  }
 
   .done { max-width: 520px; }
   .done h1 { color: var(--s44-text); margin: 0.5rem 0 0.4rem; }
