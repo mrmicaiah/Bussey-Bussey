@@ -1,5 +1,5 @@
 ---
-layout: layouts/base.njk
+layout: layouts/article.njk
 title: "Workflow Automation Tools in 2026: What the Top-10 Lists Won't Tell You"
 description: "An honest look at workflow automation tools in 2026 — the three lanes the category just split into, the silent failures no vendor mentions, and how to actually choose."
 date: 2026-05-26
@@ -10,7 +10,6 @@ tags:
   - article
 permalink: /articles/workflow-automation-tools/
 ---
-<div class="container post">
 
 # Workflow Automation Tools in 2026: What the Top-10 Lists Won't Tell You
 
@@ -129,5 +128,3 @@ If you are — there is a real, durable advantage waiting for you on the other s
 When you're ready to figure out which lane your business actually needs to be shopping in — and to find out what's worth building, what's worth renting, and what's worth owning outright — that's exactly what we do in an Assessment. We map how the work really moves, find where it's quietly leaking, and tell you the honest answer. Even when the honest answer is that the tool you already have is the one to keep.
 
 The tools were never the point. They aren't the point now. The work always was.
-
-</div>

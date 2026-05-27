@@ -1,5 +1,5 @@
 ---
-layout: layouts/base.njk
+layout: layouts/article.njk
 title: The work in your business that shouldn't be manual anymore
 description: A practical look at the everyday work service businesses still do by hand — and which of it software should be handling.
 date: 2026-04-14
@@ -10,8 +10,6 @@ tags:
   - article
 permalink: /articles/the-work-that-shouldnt-be-manual/
 ---
-
-<div class="container post">
 
 # The work in your business that shouldn't be manual anymore
 
@@ -36,5 +34,3 @@ Most owners find out about a bottleneck after it's already cost them. The work t
 ## Where to start
 
 Don't try to fix all of it at once. Pick the one that wastes the most of your best people's time, and start there. That's exactly what an Assessment is for: we find the work that's quietly costing you the most, and we start with the thing that changes the most. The rest follows.
-
-</div>

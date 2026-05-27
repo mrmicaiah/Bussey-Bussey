@@ -1,5 +1,5 @@
 ---
-layout: layouts/base.njk
+layout: layouts/article.njk
 title: "How to Automate Customer Service Without Driving Customers Away"
 description: "Automate customer service the right way: handle the simple path with AI agents, escalate to humans when it matters. A problem-first guide for service businesses."
 date: 2026-05-26
@@ -10,7 +10,6 @@ tags:
   - article
 permalink: /articles/automate-customer-service/
 ---
-<div class="container post">
 
 # How to Automate Customer Service Without Driving Customers Away
 
@@ -65,5 +64,3 @@ We're avid studiers of patterns. The things in your company that repeat. That's 
 That's what we find in an Assessment, and that's where the value lives. And it's more than just getting the task off your plate. A well-built agent doesn't only do the work — it does it better and more consistently than the rushed, distracted, end-of-day human version. More accurate. More efficient. Every time.
 
 The fear that started this — the angry customer and the unhelpful robot — is a real risk, but only if you automate backwards. Start with the path most of your customers are already on. Hand the routine to an agent that knows its limits. Keep yourself for the moments that genuinely need you. Do it in that order, and automating customer service doesn't cost you relationships. It gives you back the time to actually have them.
-
-</div>

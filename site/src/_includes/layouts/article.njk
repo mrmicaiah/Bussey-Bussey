@@ -1,0 +1,46 @@
+---
+layout: layouts/base.njk
+---
+<article class="article-page">
+
+  <header class="article-hero">
+    <div class="wrap">
+      <div class="ey">Article</div>
+      <h1 class="h1">{{ title }}</h1>
+      <div class="article-meta">
+        <span class="article-date">{{ page.date | date }}</span>
+        <span class="article-sep">·</span>
+        <span class="article-author">{{ author or "Bussey and Bussey" }}</span>
+      </div>
+    </div>
+  </header>
+
+  <div class="article-body"><div class="wrap">
+    {{ content | safe }}
+  </div></div>
+
+  {%- set related = collections.articles | reverse -%}
+  {%- if related.length > 1 -%}
+  <section class="article-related"><div class="wrap">
+    <div class="se">Keep reading</div>
+    <h2 class="h2">Other writing from the firm</h2>
+    <div class="rule"></div>
+    <div class="related-rows">
+      {%- for post in related -%}
+        {%- if post.url != page.url -%}
+          {%- if loop.index0 < 3 -%}
+          <a class="related-row" href="{{ post.url }}">
+            <div class="related-row-tag">Article</div>
+            <div class="related-row-body">
+              <h3 class="related-row-h">{{ post.data.title }}</h3>
+              {% if post.data.summary %}<p>{{ post.data.summary }}</p>{% endif %}
+            </div>
+          </a>
+          {%- endif -%}
+        {%- endif -%}
+      {%- endfor -%}
+    </div>
+  </div></section>
+  {%- endif -%}
+
+</article>

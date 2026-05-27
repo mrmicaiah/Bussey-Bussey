@@ -1,5 +1,5 @@
 ---
-layout: layouts/base.njk
+layout: layouts/article.njk
 title: "Business Process Automation Tools: Why You Probably Need Fewer Than You Think"
 description: "Most business process automation tools are a dime a dozen — and going obsolete. Here's why the workflow matters more than the tool, and how to own your software outright."
 date: 2026-05-26
@@ -10,7 +10,6 @@ tags:
   - article
 permalink: /articles/business-process-automation-tools/
 ---
-<div class="container post">
 
 # Business Process Automation Tools: Why You Probably Need Fewer Than You Think
 
@@ -63,5 +62,3 @@ Then comes the part that nobody in the subscription business wants to offer you.
 That's the question worth sitting with before you buy another business process automation tool. Not "which tool is best." The honest question is whether you need to keep renting tools at all, or whether the smarter move is to build the workflow you actually need, once, and own it.
 
 Finding out which of your tools are pulling their weight, which are quietly failing, and which could be replaced by something built and owned — that's exactly what we do in an Assessment. We map how your business really flows, find where the money is leaking, and start with the change that matters most. The tools were never the point. The workflow always was.
-
-</div>

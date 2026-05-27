@@ -1,5 +1,5 @@
 ---
-layout: layouts/base.njk
+layout: layouts/article.njk
 title: "Business Process Automation: What It Actually Takes to Do It Right"
 description: "Business process automation isn't a tool you buy — it's the discipline of understanding your work before you hand it to a machine. A field guide from the trenches."
 date: 2026-05-26
@@ -10,7 +10,6 @@ tags:
   - article
 permalink: /articles/business-process-automation/
 ---
-<div class="container post">
 
 # Business Process Automation: What It Actually Takes to Do It Right
 
@@ -105,5 +104,3 @@ It's the same lesson Amazon has been teaching everyone else the hard way. Sub-24
 So yes — you can dodge automation. But eventually your clients get annoyed that your service isn't as fast, as smooth, or as reliable as the business down the street that didn't wait. Growing isn't optional forever. Whether you feel fine right now or you're already a little worried, improvement is something you should be doing — and business process automation is a great place to start.
 
 When you're ready to find out what's actually worth automating in your business, that's exactly what we do in an Assessment. We come in, we talk to everyone, we map how the work really flows, and we find where the money is leaking — including the leaks you didn't come to us about. The tools were never the point. The process always was.
-
-</div>

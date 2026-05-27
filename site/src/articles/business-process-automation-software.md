@@ -1,5 +1,5 @@
 ---
-layout: layouts/base.njk
+layout: layouts/article.njk
 title: "Business Process Automation Software: How to Actually Choose the Right One"
 description: "Choosing business process automation software isn't a feature comparison — it's a fit question. Here's how to choose, when to build, and what most owners get wrong."
 date: 2026-05-26
@@ -10,7 +10,6 @@ tags:
   - article
 permalink: /articles/business-process-automation-software/
 ---
-<div class="container post">
 
 # Business Process Automation Software: How to Actually Choose the Right One
 
@@ -105,5 +104,3 @@ Then sort what you're looking at into commodity versus differentiator. Buy the c
 And then ask yourself the question almost no one wants to answer. Are you ready for the work? Are you ready to fail forward, to revise, to discover the missing piece in version one and build version two anyway? Because the right software, chosen well and fit precisely, is still only half of it. The other half is whether the business behind it is willing to keep getting better.
 
 That's exactly what we do in an Assessment. We figure out where your business actually fits, what's worth building and what isn't, and whether you and your team are set up to carry it forward. The tools were never the point. They're not the point now. The work, and the discipline to keep doing it, always was.
-
-</div>
