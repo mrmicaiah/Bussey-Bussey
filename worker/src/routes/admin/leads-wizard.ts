@@ -2,14 +2,20 @@ import type { HandlerContext } from '../../types/route';
 import { json } from '../../lib/responses';
 
 /**
- * Studio44 Layer 1 — leads-wizard READ endpoints (spec §5.2).
+ * Studio44 Layer 1 — leads-wizard endpoints.
  *
- *   GET /api/admin/leads/queue            — prioritized calling queue (cold | followups)
- *   GET /api/admin/leads/:id/card         — full call-card payload + activity timeline
- *   GET /api/admin/script-variants        — active variants by stage + usage rollups
+ * READ (spec §5.2):
+ *   GET  /api/admin/leads/queue           — prioritized calling queue (cold | followups)
+ *   GET  /api/admin/leads/:id/card        — full call-card payload + activity timeline
+ *   GET  /api/admin/script-variants       — active variants by stage + usage rollups
  *
- * READ-ONLY. No handler here performs any INSERT / UPDATE / DELETE — the write
- * side (activity logging, the one-motion booking transaction) is steps 4–5.
+ * WRITE (step 4 — non-booking outcomes only, spec §2.4 / §4.1 / §4.4):
+ *   POST /api/admin/leads/:id/activity    — log a non-booking call outcome (atomic)
+ *
+ * The BOOKING outcome is NOT handled here — that one-motion transaction
+ * (client + opportunity + assessment) is step 5. This module never creates a
+ * client, opportunity, or assessment.
+ *
  * Auth is enforced upstream by the `/api/admin/` gate in src/index.ts, which
  * threads a verified admin SessionRecord into ctx.session; the `if (!ctx.session)`
  * guard mirrors the existing admin handlers (belt-and-suspenders).
@@ -322,4 +328,228 @@ function optionalPositiveInt(raw: string | null): number | null {
   const n = Number(raw);
   if (!Number.isFinite(n) || n < 1) return null;
   return Math.floor(n);
+}
+
+// ─── 4. Log a non-booking outcome (WRITE — atomic) ─────────────────────────────
+//
+// POST /api/admin/leads/:id/activity
+//
+// Records one of the five non-booking call outcomes (or a skip) for a lead, in a
+// single DB.batch transaction (all-or-nothing). The BOOKING outcome is NOT handled
+// here — it's the step-5 transaction. outcome === kind 1:1 for all six values.
+//
+// outcome → kind + side effects (built exactly per §2.4):
+//   callback    → kind 'callback'    · set next_followup_at = provided datetime · bump + last_contacted
+//   no_answer   → kind 'no_answer'   · bump + last_contacted
+//   voicemail   → kind 'voicemail'   · bump + last_contacted
+//   dead_number → kind 'dead_number' · set is_dead_number = 1 · bump + last_contacted
+//   do_not_call → kind 'do_not_call' · set do_not_call = 1    · bump + last_contacted
+//   skipped     → kind 'skipped'     · NO bump, NO last_contacted (a skip isn't a contact)
+//
+// For the five real outcomes: attempt_number = current count + 1 (this call IS that
+// attempt) and a script_variant_usage row is appended per non-null variant id used.
+// For 'skipped': attempt_number = current count (no attempt made); the chosen variant
+// ids are still snapshotted onto the activity row (over-track mandate) but NO
+// script_variant_usage rows are written (the script wasn't delivered — keeps
+// book-rate denominators honest). industry_at_time and attempt_number are taken
+// from the lead server-side, not trusted from the client.
+
+const ACTIVITY_OUTCOMES = new Set([
+  'callback',
+  'no_answer',
+  'voicemail',
+  'dead_number',
+  'do_not_call',
+  'skipped',
+]);
+
+type ActivityVariantField =
+  | 'opener_variant_id'
+  | 'hook_variant_id'
+  | 'discovery_variant_id'
+  | 'close_variant_id';
+
+const VARIANT_FIELDS: ActivityVariantField[] = [
+  'opener_variant_id',
+  'hook_variant_id',
+  'discovery_variant_id',
+  'close_variant_id',
+];
+
+export async function logLeadActivityHandler(ctx: HandlerContext): Promise<Response> {
+  if (!ctx.session) return json({ error: 'unauthenticated' }, { status: 401 });
+  const id = ctx.params['id'];
+  if (!id) return json({ error: 'invalid_id' }, { status: 400 });
+
+  const body = await readJsonObject(ctx.request);
+  if (!body) return json({ error: 'invalid_request' }, { status: 400 });
+
+  const outcome = typeof body['outcome'] === 'string' ? body['outcome'] : '';
+  if (!ACTIVITY_OUTCOMES.has(outcome)) return json({ error: 'invalid_outcome' }, { status: 400 });
+
+  const nextFollowupAt =
+    typeof body['next_followup_at'] === 'string' ? body['next_followup_at'].trim() : '';
+  if (outcome === 'callback' && !nextFollowupAt) {
+    return json({ error: 'next_followup_at_required' }, { status: 400 });
+  }
+
+  const cardDwellMs = optionalNonNegativeInt(body['card_dwell_ms']);
+  const phoneDurationS = optionalNonNegativeInt(body['phone_duration_s']);
+  const sessionId = stringOrNull(body['session_id']);
+  const notes = stringOrNull(body['notes']);
+  const variantIds: Record<ActivityVariantField, string | null> = {
+    opener_variant_id: stringOrNull(body['opener_variant_id']),
+    hook_variant_id: stringOrNull(body['hook_variant_id']),
+    discovery_variant_id: stringOrNull(body['discovery_variant_id']),
+    close_variant_id: stringOrNull(body['close_variant_id']),
+  };
+
+  const lead = await ctx.env.DB.prepare(
+    `SELECT id, industry, status, attempt_count, do_not_call, is_dead_number FROM lead WHERE id = ?`,
+  )
+    .bind(id)
+    .first<{
+      id: string;
+      industry: string | null;
+      status: string;
+      attempt_count: number;
+      do_not_call: number;
+      is_dead_number: number;
+    }>();
+  if (!lead) return json({ error: 'not_found' }, { status: 404 });
+
+  const isSkip = outcome === 'skipped';
+  const now = new Date().toISOString();
+  const activityId = crypto.randomUUID();
+  // attempt_number: real outcomes record THIS attempt (count + 1); a skip records
+  // the current count (no attempt was made).
+  const attemptNumber = isSkip ? lead.attempt_count : lead.attempt_count + 1;
+
+  const actorId = ctx.session.subjectId;
+  const ip = ctx.session.ipAddress;
+  const ua = ctx.session.userAgent;
+
+  const stmts = [] as ReturnType<typeof ctx.env.DB.prepare>[];
+
+  // 1. The lead_activity row (always). kind === outcome (1:1).
+  stmts.push(
+    ctx.env.DB.prepare(
+      `INSERT INTO lead_activity
+         (id, lead_id, kind, outcome, attempt_number, industry_at_time,
+          opener_variant_id, hook_variant_id, discovery_variant_id, close_variant_id,
+          card_dwell_ms, phone_duration_s, session_id, notes, created_by_user_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      activityId,
+      id,
+      outcome,
+      outcome,
+      attemptNumber,
+      lead.industry,
+      variantIds.opener_variant_id,
+      variantIds.hook_variant_id,
+      variantIds.discovery_variant_id,
+      variantIds.close_variant_id,
+      cardDwellMs,
+      phoneDurationS,
+      sessionId,
+      notes,
+      actorId,
+    ),
+  );
+
+  // 2. Lead mutation — only for the five real outcomes (a skip changes nothing).
+  if (!isSkip) {
+    const sets = ['attempt_count = attempt_count + 1', 'last_contacted_at = ?'];
+    const binds: unknown[] = [now];
+    if (outcome === 'callback') {
+      sets.push('next_followup_at = ?');
+      binds.push(nextFollowupAt);
+    }
+    if (outcome === 'dead_number') sets.push('is_dead_number = 1');
+    if (outcome === 'do_not_call') sets.push('do_not_call = 1');
+    binds.push(id);
+    stmts.push(
+      ctx.env.DB.prepare(`UPDATE lead SET ${sets.join(', ')} WHERE id = ?`).bind(...binds),
+    );
+
+    // 3. script_variant_usage — one row per non-null variant actually used on the
+    //    call. Skipped outcomes write none (script wasn't delivered).
+    for (const field of VARIANT_FIELDS) {
+      const vid = variantIds[field];
+      if (!vid) continue;
+      stmts.push(
+        ctx.env.DB.prepare(
+          `INSERT INTO script_variant_usage (id, variant_id, lead_id, activity_id, outcome)
+           VALUES (?, ?, ?, ?, ?)`,
+        ).bind(crypto.randomUUID(), vid, id, activityId, outcome),
+      );
+    }
+  }
+
+  // 4. Audit (inlined into the same batch so it's part of the atomic write).
+  stmts.push(
+    ctx.env.DB.prepare(
+      `INSERT INTO audit_log
+         (id, actor_type, actor_id, action, entity_type, entity_id, changes, ip_address, user_agent)
+       VALUES (?, 'admin_user', ?, ?, 'lead', ?, ?, ?, ?)`,
+    ).bind(
+      crypto.randomUUID(),
+      actorId,
+      'lead.activity_logged',
+      id,
+      JSON.stringify({
+        activity_id: activityId,
+        kind: outcome,
+        outcome,
+        attempt_number: attemptNumber,
+        attempt_count: { from: lead.attempt_count, to: isSkip ? lead.attempt_count : lead.attempt_count + 1 },
+        session_id: sessionId,
+        card_dwell_ms: cardDwellMs,
+        next_followup_at: outcome === 'callback' ? nextFollowupAt : undefined,
+        is_dead_number: outcome === 'dead_number' ? 1 : undefined,
+        do_not_call: outcome === 'do_not_call' ? 1 : undefined,
+      }),
+      ip,
+      ua,
+    ),
+  );
+
+  await ctx.env.DB.batch(stmts);
+
+  return json({
+    ok: true,
+    activity_id: activityId,
+    lead: {
+      id,
+      attempt_count: isSkip ? lead.attempt_count : lead.attempt_count + 1,
+      last_contacted_at: isSkip ? null : now,
+      next_followup_at: outcome === 'callback' ? nextFollowupAt : null,
+      do_not_call: outcome === 'do_not_call' ? 1 : lead.do_not_call,
+      is_dead_number: outcome === 'dead_number' ? 1 : lead.is_dead_number,
+    },
+  });
+}
+
+async function readJsonObject(request: Request): Promise<Record<string, unknown> | null> {
+  try {
+    const parsed = (await request.json()) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function stringOrNull(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  const t = v.trim();
+  return t === '' ? null : t;
+}
+
+function optionalNonNegativeInt(v: unknown): number | null {
+  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return null;
+  return Math.floor(v);
 }

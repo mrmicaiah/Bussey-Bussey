@@ -24,10 +24,12 @@
     ScriptVariantsResponse,
     ScriptVariantsByStage,
     ScriptVariantStage,
+    NonBookingOutcome,
+    LogActivityRequest,
+    LogActivityResponse,
   } from '$lib/types';
   import SessionSetup from '$lib/components/leads-wizard/SessionSetup.svelte';
   import CallCard from '$lib/components/leads-wizard/CallCard.svelte';
-  import type { CardOutcome } from '$lib/components/leads-wizard/CallCard.svelte';
 
   type Phase = 'setup' | 'card' | 'booking' | 'done';
   let phase = $state<Phase>('setup');
@@ -47,6 +49,9 @@
   let setupError = $state<string | null>(null);
   let cardLoading = $state(false);
   let cardError = $state<string | null>(null);
+  // Outcome POST in flight + inline error (failed POST must NOT advance the card).
+  let posting = $state(false);
+  let postError = $state<string | null>(null);
 
   // Scoreboard stays 0 in step 3 — booking does not persist yet.
   const bookedCount = 0;
@@ -122,6 +127,7 @@
     cardError = null;
     card = null;
     timeline = [];
+    postError = null;
     resetDwell();
     try {
       const res = await api.get<LeadCardResponse>(`/api/admin/leads/${item.id}/card`);
@@ -149,23 +155,32 @@
     }
   }
 
-  // Outcomes: capture in-memory ONLY (the values a later step will persist).
-  // Nothing is written. The capture object is intentionally unused for now.
-  function handleOutcome(outcome: CardOutcome) {
-    const _captured = {
-      session_id: session?.id ?? null,
-      lead_id: card?.id ?? null,
-      outcome,
-      card_dwell_ms: dwellMs,
-      attempt_number: (card?.attempt_count ?? 0) + 1,
-      industry_at_time: card?.industry ?? null,
-      opener_variant_id: selected.opener,
-      hook_variant_id: selected.hook,
-      discovery_variant_id: selected.discovery,
-      close_variant_id: selected.close,
-    };
-    void _captured; // step 4 will POST this; not persisted in step 3
-    advance();
+  // Non-booking outcomes (and skip) persist via the step-4 activity endpoint, then
+  // advance ON SUCCESS only. Card dwell is snapshotted at click. A failed POST shows
+  // an inline error and does NOT advance — nothing is silently lost.
+  async function logOutcome(outcome: NonBookingOutcome, extra?: { next_followup_at?: string }) {
+    if (posting || !card) return;
+    posting = true;
+    postError = null;
+    const dwell = dwellMs; // snapshot the dwell timer at the moment of the outcome
+    try {
+      const reqBody: LogActivityRequest = {
+        outcome,
+        session_id: session?.id ?? null,
+        card_dwell_ms: dwell,
+        opener_variant_id: selected.opener,
+        hook_variant_id: selected.hook,
+        discovery_variant_id: selected.discovery,
+        close_variant_id: selected.close,
+        next_followup_at: extra?.next_followup_at ?? null,
+      };
+      await api.post<LogActivityResponse>(`/api/admin/leads/${card.id}/activity`, reqBody);
+      advance();
+    } catch (e) {
+      postError = e instanceof ApiError ? `Couldn't log (${e.errorCode ?? e.status}).` : 'Network error.';
+    } finally {
+      posting = false;
+    }
   }
 
   function handleBook() {
@@ -234,10 +249,12 @@
           {variants}
           {selected}
           {onpick}
-          onoutcome={handleOutcome}
+          onoutcome={logOutcome}
           onbook={handleBook}
-          onskip={advance}
+          onskip={() => logOutcome('skipped')}
           {dwellLabel}
+          busy={posting}
+          error={postError}
         />
       {/if}
     {:else if phase === 'booking'}

@@ -28,19 +28,45 @@
     onbook,
     onskip,
     dwellLabel,
+    busy = false,
+    error = null,
   }: {
     card: LeadCard;
     timeline: LeadActivity[];
     variants: ScriptVariantsByStage;
     selected: Record<ScriptVariantStage, string | null>;
     onpick: (stage: ScriptVariantStage, variantId: string) => void;
-    onoutcome: (outcome: CardOutcome) => void;
+    onoutcome: (outcome: CardOutcome, extra?: { next_followup_at?: string }) => void;
     onbook: () => void;
     onskip: () => void;
     dwellLabel: string;
+    busy?: boolean;
+    error?: string | null;
   } = $props();
 
   const inConversionZone = $derived(card.attempt_count >= 6);
+
+  // Callback needs a datetime before it can be logged (§2.4). Inline picker with
+  // two quick-picks + a custom datetime. Reset whenever the card changes.
+  let callbackOpen = $state(false);
+  let callbackAt = $state('');
+  $effect(() => {
+    void card.id; // re-run on card change
+    callbackOpen = false;
+    callbackAt = '';
+  });
+
+  function localDatetime(daysAhead: number, hour = 9): string {
+    const d = new Date();
+    d.setDate(d.getDate() + daysAhead);
+    d.setHours(hour, 0, 0, 0);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  function confirmCallback() {
+    if (!callbackAt || busy) return;
+    onoutcome('callback', { next_followup_at: callbackAt });
+  }
 
   function fmtDate(iso: string): string {
     try {
@@ -106,15 +132,32 @@
 
   <!-- RIGHT: actions + Alice -->
   <div class="actions">
-    <button type="button" class="out out-book" onclick={onbook}>Booked assessment</button>
+    <!-- Booking stays a disabled placeholder this step — step 5 wires the transaction. -->
+    <button type="button" class="out out-book" onclick={onbook} disabled={busy}>Booked assessment</button>
     <div class="out-grid">
-      <button type="button" class="out out-neutral" onclick={() => onoutcome('callback')}>Call back</button>
-      <button type="button" class="out out-neutral" onclick={() => onoutcome('no_answer')}>No answer</button>
-      <button type="button" class="out out-neutral" onclick={() => onoutcome('voicemail')}>Voicemail</button>
-      <button type="button" class="out out-neutral" onclick={() => onoutcome('dead_number')}>Dead number</button>
+      <button type="button" class="out out-neutral" onclick={() => (callbackOpen = !callbackOpen)} disabled={busy} aria-expanded={callbackOpen}>Call back</button>
+      <button type="button" class="out out-neutral" onclick={() => onoutcome('no_answer')} disabled={busy}>No answer</button>
+      <button type="button" class="out out-neutral" onclick={() => onoutcome('voicemail')} disabled={busy}>Voicemail</button>
+      <button type="button" class="out out-neutral" onclick={() => onoutcome('dead_number')} disabled={busy}>Dead number</button>
     </div>
-    <button type="button" class="out out-dnc" onclick={() => onoutcome('do_not_call')}>Do not call</button>
-    <button type="button" class="out out-skip" onclick={onskip}>Skip / snooze →</button>
+
+    {#if callbackOpen}
+      <div class="callback">
+        <div class="callback-quick">
+          <button type="button" onclick={() => (callbackAt = localDatetime(1))} disabled={busy}>Tomorrow 9am</button>
+          <button type="button" onclick={() => (callbackAt = localDatetime(3))} disabled={busy}>In 3 days</button>
+        </div>
+        <input type="datetime-local" bind:value={callbackAt} disabled={busy} aria-label="Follow-up date and time" />
+        <button type="button" class="out out-book callback-confirm" onclick={confirmCallback} disabled={busy || !callbackAt}>
+          {busy ? 'Saving…' : 'Confirm call back'}
+        </button>
+      </div>
+    {/if}
+
+    <button type="button" class="out out-dnc" onclick={() => onoutcome('do_not_call')} disabled={busy}>Do not call</button>
+    <button type="button" class="out out-skip" onclick={onskip} disabled={busy}>Skip / snooze →</button>
+
+    {#if error}<div class="out-error">{error}</div>{/if}
 
     <!-- Dormant Alice coach slot — wires in Layer 4. No capability here. -->
     <div class="alice" aria-label="Alice coach panel (inactive)">
@@ -190,6 +233,31 @@
   .out-dnc { background: transparent; color: #f87171; border-color: #7f1d1d; }
   .out-skip { background: transparent; color: var(--s44-muted, #a1a1aa); border-color: transparent; font-weight: 500; }
   .out-skip:hover { color: var(--s44-text, #f4f4f5); filter: none; }
+  .out:disabled { opacity: 0.55; cursor: not-allowed; filter: none; }
+
+  .callback {
+    display: flex; flex-direction: column; gap: 0.5rem;
+    border: 1px solid var(--s44-border, #2a2a2e); border-radius: 8px;
+    padding: 0.6rem; background: var(--s44-surface, #141416);
+  }
+  .callback-quick { display: flex; gap: 0.5rem; }
+  .callback-quick button {
+    flex: 1; cursor: pointer; font: inherit; font-size: 0.82rem;
+    background: var(--s44-surface-2, #1c1c1f); color: var(--s44-text, #f4f4f5);
+    border: 1px solid var(--s44-border, #2a2a2e); border-radius: 6px; padding: 0.4rem;
+  }
+  .callback-quick button:hover { border-color: var(--s44-crimson, #d40b1e); }
+  .callback-quick button:disabled { opacity: 0.55; cursor: not-allowed; }
+  .callback input {
+    font: inherit; background: var(--s44-surface-2, #1c1c1f); color: var(--s44-text, #f4f4f5);
+    border: 1px solid var(--s44-border, #2a2a2e); border-radius: 6px; padding: 0.4rem 0.5rem;
+  }
+  .callback-confirm { font-size: 0.9rem; padding: 0.55rem; }
+
+  .out-error {
+    background: rgba(212, 11, 30, 0.12); border: 1px solid var(--s44-crimson, #d40b1e);
+    color: #fca5a5; border-radius: 8px; padding: 0.5rem 0.65rem; font-size: 0.82rem;
+  }
 
   .alice {
     margin-top: 0.4rem; border: 1px dashed var(--s44-border, #2a2a2e); border-radius: 8px;

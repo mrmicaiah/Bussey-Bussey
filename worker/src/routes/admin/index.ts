@@ -3,7 +3,7 @@ import { notImplemented } from '../../lib/responses';
 import { adminLogin, adminLogout } from './auth';
 import { adminMe } from './me';
 import { listLeads, getLead, createLead, updateLead, deleteLead, getLeadChatTranscript } from './leads';
-import { leadsQueueHandler, leadCardHandler, listScriptVariantsHandler } from './leads-wizard';
+import { leadsQueueHandler, leadCardHandler, listScriptVariantsHandler, logLeadActivityHandler } from './leads-wizard';
 import { listClients, getClient, createClient, updateClient, deleteClient } from './clients';
 import {
   listOpportunities,
@@ -146,6 +146,12 @@ export const adminRoutes: Route[] = [
     pattern: new URLPattern({ pathname: '/api/admin/leads/:id/card' }),
     description: 'Leads-wizard call-card payload + activity timeline for one lead. READ-ONLY.',
     handler: leadCardHandler,
+  },
+  {
+    method: 'POST',
+    pattern: new URLPattern({ pathname: '/api/admin/leads/:id/activity' }),
+    description: 'Log a non-booking call outcome (callback/no_answer/voicemail/dead_number/do_not_call/skipped). Atomic.',
+    handler: logLeadActivityHandler,
   },
   {
     method: 'GET',

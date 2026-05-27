@@ -330,3 +330,39 @@ export type ScriptVariantsByStage = {
 export type ScriptVariantsResponse = {
   variants: ScriptVariantsByStage;
 };
+
+// ── Studio44 Layer 1 — step 4: non-booking activity logging ─────────────
+// 'booked' is intentionally NOT a member here — booking is the step-5 transaction.
+export type NonBookingOutcome =
+  | 'callback'
+  | 'no_answer'
+  | 'voicemail'
+  | 'dead_number'
+  | 'do_not_call'
+  | 'skipped';
+
+export type LogActivityRequest = {
+  outcome: NonBookingOutcome;
+  session_id?: string | null;
+  card_dwell_ms?: number | null;
+  phone_duration_s?: number | null;
+  opener_variant_id?: string | null;
+  hook_variant_id?: string | null;
+  discovery_variant_id?: string | null;
+  close_variant_id?: string | null;
+  notes?: string | null;
+  next_followup_at?: string | null; // required when outcome === 'callback'
+};
+
+export type LogActivityResponse = {
+  ok: true;
+  activity_id: string;
+  lead: {
+    id: string;
+    attempt_count: number;
+    last_contacted_at: string | null;
+    next_followup_at: string | null;
+    do_not_call: number;
+    is_dead_number: number;
+  };
+};
