@@ -1,27 +1,47 @@
+/* ============================================================================
+   Bussey & Bussey — Public Site
+   ----------------------------------------------------------------------------
+   One design system, applied consistently across every page. Editorial in
+   spirit: crimson + warm black on paper-cream, generous type, hairline rules,
+   image bands. No two design languages. No placeholder pages.
+   ========================================================================= */
+
 :root {
-  --bg: #ffffff;
-  --surface: #ffffff;
-  --ink: #0a0a0a;          /* near-black — primary text & hard borders */
-  --ink-soft: #2a2a2a;     /* body paragraph text */
-  --muted: #6b6b66;
-  --accent: #d40b1e;       /* sharp crimson — the brand red */
-  --accent-deep: #9e0816;  /* hover for crimson surfaces (send button) */
+  /* — Color tokens ————————————————————————————————————— */
+  --bg: #ffffff;             /* page background */
+  --paper: #f9f7f1;          /* washed sections — paper cream, not gray */
+  --ink: #0d0d0c;            /* primary text & hard borders */
+  --ink-soft: #2a2a26;       /* body paragraph text */
+  --muted: #6b6b66;          /* meta, captions */
+  --accent: #d40b1e;         /* brand crimson */
+  --accent-deep: #9e0816;    /* crimson hover */
   --accent-text: #ffffff;
-  --hair: #e7e7e2;         /* light hairline for subtle internal rules */
-  --wash: #f6f6f3;         /* washed "who we are" section background */
-  --max: 1140px;           /* centered content column max-width */
-  --font-display: 'Space Grotesk', sans-serif;
-  --font-body: 'Instrument Sans', sans-serif;
-  /* Legacy aliases so pre-existing rules keep resolving to the new palette. */
+  --hair: #e7e4dc;           /* hairline divider — warm */
+  --shadow: 0 18px 40px -22px rgba(13, 13, 12, 0.4);
+
+  /* — Layout tokens ———————————————————————————————————— */
+  --max: 1140px;
+  --max-narrow: 760px;
+  --max-read: 720px;
+  --gutter: 28px;
+
+  /* — Type tokens ——————————————————————————————————————— */
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Instrument Sans', system-ui, sans-serif;
+
+  /* — Legacy aliases — */
   --text: var(--ink);
   --border: var(--hair);
+  --surface: var(--bg);
+  --wash: var(--paper);
+
   font-family: var(--font-body);
   font-size: 16px;
   line-height: 1.6;
   color: var(--ink);
 }
 
-* { box-sizing: border-box; }
+*, *::before, *::after { box-sizing: border-box; }
 
 html { scroll-behavior: smooth; }
 
@@ -30,10 +50,88 @@ body {
   background: var(--bg);
   font-family: var(--font-body);
   line-height: 1.6;
+  color: var(--ink);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-h1, h2, h3, h4 { font-family: var(--font-display); }
+img { max-width: 100%; display: block; }
+
+/* ============================================================================
+   Layout — the centered column
+   ========================================================================= */
+
+.wrap { max-width: var(--max); margin: 0 auto; padding: 0 var(--gutter); }
+.wrap.narrow { max-width: var(--max-narrow); }
+.wrap.read { max-width: var(--max-read); }
+
+/* ============================================================================
+   Typography — the editorial scale
+   ========================================================================= */
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: var(--ink);
+  margin: 0;
+}
+
+/* The display H1 — hero pages */
+.h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2.1rem, 4vw, 3.2rem);
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+  margin: 0;
+}
+.h1 em { font-style: normal; color: var(--accent); }
+
+/* The display H2 — section heads */
+.h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  margin: 0;
+}
+
+.h3 {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.3rem;
+  letter-spacing: -0.02em;
+  margin: 36px 0 10px;
+}
+
+/* The crimson eyebrow — small caps */
+.ey, .se {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 18px;
+}
+
+/* The 50px crimson rule */
+.rule { width: 50px; height: 3px; background: var(--accent); margin: 18px 0 24px; border: 0; }
+
+.lead {
+  font-size: 1.15rem;
+  color: var(--ink-soft);
+  line-height: 1.55;
+  margin: 22px 0 0;
+  max-width: 42ch;
+}
+
+p { color: var(--ink-soft); margin: 0 0 15px; max-width: 60ch; }
+p:last-child { margin-bottom: 0; }
 
 a {
   color: var(--accent);
@@ -41,41 +139,27 @@ a {
 }
 a:hover { text-decoration: underline; }
 
-.container {
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 1.5rem;
-}
-
-.row {
-  display: flex;
-  gap: 1.5rem;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
 .muted { color: var(--muted); }
 .small { font-size: 0.9rem; }
-.lead  { font-size: 1.15rem; color: var(--muted); }
 
-/* Centered content column — caps page content at 1140px with side gutters.
-   Image bands go full-bleed; their inner .wrap stays capped at this width. */
-.wrap { max-width: var(--max); margin: 0 auto; padding: 0 28px; }
+/* ============================================================================
+   Header — sticky brand lockup + nav
+   ========================================================================= */
 
-/* Header — sticky brand lockup left, nav right, hairline rule + backdrop blur. */
 .hdr {
-  border-bottom: 1px solid var(--hair);
   position: sticky;
   top: 0;
+  z-index: 50;
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(8px);
-  z-index: 50;
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--hair);
 }
 .hdr .wrap {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 18px 28px;
+  padding: 18px var(--gutter);
 }
 .brand {
   font-family: var(--font-display);
@@ -84,8 +168,9 @@ a:hover { text-decoration: underline; }
   letter-spacing: -0.03em;
   line-height: 1;
   color: var(--ink);
+  display: inline-block;
 }
-.brand:hover { text-decoration: none; }
+.brand:hover { text-decoration: none; color: var(--ink); }
 .brand .amp { color: var(--accent); }
 .brand .tag {
   display: block;
@@ -97,88 +182,97 @@ a:hover { text-decoration: underline; }
   color: var(--muted);
   margin-top: 5px;
 }
-.nav { display: flex; gap: 24px; font-size: 14px; }
+.nav { display: flex; gap: 26px; font-size: 14px; align-items: center; }
 .nav a {
   color: var(--ink-soft);
   text-decoration: none;
   letter-spacing: -0.01em;
   transition: color 0.15s;
-}
-.nav a:hover { color: var(--accent); text-decoration: none; }
-
-.foot { border-top: 1px solid var(--hair); }
-.foot .wrap {
-  display: flex;
-  justify-content: space-between;
-  padding: 34px 28px;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.btn {
-  display: inline-block;
-  padding: 0.55rem 1rem;
-  border-radius: 6px;
-  margin-right: 0.5rem;
+  font-family: var(--font-display);
   font-weight: 500;
 }
-.btn.primary { background: var(--accent); color: var(--accent-text); }
-.btn.primary:hover { filter: brightness(0.93); text-decoration: none; }
-.btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--border); }
-.btn.ghost:hover { background: var(--surface); text-decoration: none; }
-
-.two-col {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2rem;
+.nav a:hover { color: var(--accent); text-decoration: none; }
+.nav a.is-cta {
+  background: var(--accent);
+  color: var(--accent-text);
+  padding: 9px 18px;
+  border-radius: 8px;
+  font-weight: 700;
+  transition: background 0.15s;
 }
-@media (max-width: 700px) {
-  .two-col { grid-template-columns: 1fr; }
-}
+.nav a.is-cta:hover { background: var(--accent-deep); color: var(--accent-text); }
 
-.industry-list {
-  list-style: none;
-  padding: 0;
+/* ============================================================================
+   Footer — three-column real footer
+   ========================================================================= */
+
+.foot {
+  background: var(--ink);
+  color: rgba(255, 255, 255, 0.78);
+  border-top: 4px solid var(--accent);
+  padding: 64px 0 28px;
+}
+.foot .wrap { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 56px; }
+.foot-col h4 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+  margin: 0 0 18px;
+}
+.foot-brand .brand-mark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 22px;
+  letter-spacing: -0.03em;
+  color: #fff;
+  margin: 0 0 14px;
+}
+.foot-brand .brand-mark .amp { color: var(--accent); }
+.foot-brand p {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 14.5px;
+  line-height: 1.55;
+  max-width: 38ch;
+  margin: 0;
+}
+.foot-col ul { list-style: none; margin: 0; padding: 0; }
+.foot-col li { margin: 0 0 10px; }
+.foot-col a {
+  color: rgba(255, 255, 255, 0.82);
+  text-decoration: none;
+  font-size: 14.5px;
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  transition: color 0.15s;
+}
+.foot-col a:hover { color: var(--accent); text-decoration: none; }
+.foot-bottom {
+  margin-top: 56px;
+  padding: 20px var(--gutter) 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-.industry-list a {
-  display: inline-block;
-  padding: 0.5rem 1rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  justify-content: space-between;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.45);
+  max-width: var(--max);
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.post-list { list-style: none; padding: 0; }
-.post-list li {
-  margin-bottom: 1rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
+@media (max-width: 840px) {
+  .foot { padding: 52px 0 24px; }
+  .foot .wrap { grid-template-columns: 1fr; gap: 36px; }
+  .foot-bottom { flex-direction: column; gap: 8px; margin-top: 36px; }
 }
-.post-list a {
-  display: block;
-  padding: 1rem 1.25rem;
-  color: inherit;
-}
-.post-list a:hover { background: #fafaf8; text-decoration: none; }
-.post-list h3 { margin: 0 0 0.25rem; color: var(--accent); }
-.post-list p { margin: 0; }
 
-.post h1 { margin-top: 0; }
+/* ============================================================================
+   Hero — homepage (pitch + chat card)
+   ========================================================================= */
 
-/* ---------------------------------------------------------------------------
-   Homepage v4 — conventional landing page reproducing the approved prototype
-   (prompts/landing-prototype.html): sticky header → hero (pitch copy + a TIGHT
-   bounded chat card) → dark tools image band (the problem) → Assessment text
-   section → washed "who we are" section → provocative image climax + CTA →
-   footer. All page content is centered in the 1140px .wrap column; only the
-   image bands go full-bleed (background), with their inner .wrap still capped.
-   --------------------------------------------------------------------------- */
-
-/* Hero — pitch copy left (1fr), fixed 400px chat card right. */
 .hero { padding: 88px 0 72px; }
 .hero .wrap {
   display: grid;
@@ -186,25 +280,7 @@ a:hover { text-decoration: underline; }
   gap: 56px;
   align-items: center;
 }
-.ey {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin: 0 0 20px;
-}
-.h1 {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(2.1rem, 3.6vw, 3.1rem);
-  line-height: 1.02;
-  letter-spacing: -0.035em;
-  margin: 0;
-}
-.h1 em { font-style: normal; color: var(--accent); }
-.hero p.lead {
+.hero .lead {
   font-size: 1.1rem;
   color: var(--ink-soft);
   margin: 22px 0 0;
@@ -217,13 +293,18 @@ a:hover { text-decoration: underline; }
   font-size: 1.4rem;
   letter-spacing: -0.02em;
 }
-.stats .l { font-size: 12.5px; color: var(--muted); line-height: 1.4; margin-top: 2px; max-width: 18ch; }
+.stats .l {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.4;
+  margin-top: 2px;
+  max-width: 18ch;
+}
 
-/* The chat card — a SMALL bounded card (400 × 440), NOT a full panel. The
-   static status bar + lock line live in index.njk; the live widget renders its
-   thread, begin-cue and composer into #bb-chat-inline (chat-widget.js inline
-   mode). The card's FIXED 440px height bounds the chat: only the thread
-   scrolls, the composer stays pinned. (Do NOT reintroduce 460px/70vh/100svh.) */
+/* ============================================================================
+   The chat card — bounded 400×440, status bar + live widget + lock line
+   ========================================================================= */
+
 .chat {
   border: 1.5px solid var(--ink);
   border-radius: 16px;
@@ -231,7 +312,8 @@ a:hover { text-decoration: underline; }
   display: flex;
   flex-direction: column;
   height: 440px;
-  box-shadow: 0 18px 40px -22px rgba(0, 0, 0, 0.4);
+  background: #fff;
+  box-shadow: var(--shadow);
 }
 .chat-top {
   flex: 0 0 auto;
@@ -256,7 +338,6 @@ a:hover { text-decoration: underline; }
 }
 .chat-top .who { font-family: var(--font-display); font-weight: 500; font-size: 13px; }
 .chat-top .st { font-size: 11.5px; color: var(--muted); margin-left: auto; }
-/* The live widget fills the space between the status bar and the lock line. */
 .chat #bb-chat-inline { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .lock {
   flex: 0 0 auto;
@@ -268,39 +349,18 @@ a:hover { text-decoration: underline; }
   gap: 5px;
 }
 
-/* Text sections — Assessment ("We don't do free"), washed "who we are". */
-.section { padding: 84px 0; }
-.section.wash { background: var(--wash); }
-.se {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--accent);
-  margin: 0 0 18px;
-}
-.h2 {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(1.8rem, 3vw, 2.4rem);
-  letter-spacing: -0.03em;
-  line-height: 1.05;
-  margin: 0;
-}
-.rule { width: 50px; height: 3px; background: var(--accent); margin: 18px 0 24px; }
-.section p { font-size: 1.05rem; color: var(--ink-soft); margin: 0 0 15px; max-width: 60ch; }
-.section p:last-child { margin-bottom: 0; }
-.h3 {
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-size: 1.3rem;
-  letter-spacing: -0.02em;
-  margin: 36px 0 10px;
-}
-.narrow { max-width: 760px; }
+/* ============================================================================
+   Section primitives
+   ========================================================================= */
 
-/* Problem band — full-bleed tools photo behind a strong scrim, white text. */
+.section { padding: 84px 0; }
+.section.wash { background: var(--paper); }
+.section.read { padding: 64px 0 88px; }
+
+/* ============================================================================
+   Image bands — full-bleed photo with scrim + white text
+   ========================================================================= */
+
 .band {
   position: relative;
   overflow: hidden;
@@ -322,13 +382,18 @@ a:hover { text-decoration: underline; }
 .band .h2 { color: #fff; }
 .band p { color: rgba(255, 255, 255, 0.85); margin: 0; }
 
-/* Climax — full-bleed provocative photo behind a heavy scrim, centered. */
+/* ============================================================================
+   Climax / CTA band — centered, dark, with a button — this is the unified
+   page-end CTA on every page except home (which has the chat). All CTAs
+   point to `/#chat` — the home page chat is the single entry point.
+   ========================================================================= */
+
 .climax {
   position: relative;
   overflow: hidden;
   color: #fff;
   text-align: center;
-  background: #0a0a0a;
+  background: var(--ink);
   padding: 104px 0;
 }
 .climax .climax-bg {
@@ -343,7 +408,9 @@ a:hover { text-decoration: underline; }
 .climax .wrap { position: relative; z-index: 2; max-width: 760px; }
 .climax .se { color: #f0626c; }
 .climax .h2 { color: #fff; }
-.climax p { color: rgba(255, 255, 255, 0.85); margin: 0 auto; }
+.climax p { color: rgba(255, 255, 255, 0.85); margin: 0 auto 0; max-width: 60ch; }
+.climax .rule { margin-left: auto; margin-right: auto; }
+
 .cta {
   display: inline-block;
   margin-top: 30px;
@@ -356,43 +423,45 @@ a:hover { text-decoration: underline; }
   padding: 14px 28px;
   border-radius: 11px;
   transition: all 0.15s;
+  letter-spacing: -0.01em;
 }
-.cta:hover { background: #fff; color: #0a0a0a; text-decoration: none; }
+.cta:hover { background: #fff; color: var(--ink); text-decoration: none; }
+.cta.cta-filled { background: var(--accent); border-color: var(--accent); color: #fff; }
+.cta.cta-filled:hover { background: var(--accent-deep); border-color: var(--accent-deep); color: #fff; }
 
-/* Mobile: hero collapses to one column (pitch on top, chat card full-width
-   below), header stacks, nav wraps. The chat card stays bounded (400px) so its
-   thread scrolls and the composer stays pinned. */
-@media (max-width: 840px) {
-  .hero .wrap { grid-template-columns: 1fr; gap: 36px; }
-  .chat { height: 400px; }
-  .hdr .wrap { flex-direction: column; gap: 12px; align-items: flex-start; }
-  .nav { flex-wrap: wrap; gap: 16px; }
-  .stats { gap: 24px; }
+/* Light variant — for inline use on white sections */
+.cta-light {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15px;
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+  padding: 14px 28px;
+  border-radius: 11px;
+  transition: background 0.15s;
+  letter-spacing: -0.01em;
 }
+.cta-light:hover { background: var(--accent-deep); text-decoration: none; color: #fff; }
 
-/* ---------------------------------------------------------------------------
-   Services page — problem-framed, built on the same locked tokens as the
-   homepage v4 block above: compact single-column hero → five problem→fix rows
-   → the shared tools image band → a contact section that IS the chat card
-   (the same .chat component, one #bb-chat-inline mount). Reuses .wrap, .ey,
-   .h1, .lead, .section, .se, .h2, .band and .chat; only the layout-specific
-   pieces below are new.
-   --------------------------------------------------------------------------- */
+/* ============================================================================
+   Hero-lite — compact single-column hero (Services, About, Articles, Blog)
+   ========================================================================= */
 
-/* Compact hero — single column, no chat card, no image. Generous top padding,
-   tighter bottom so it leads into the problem rows. */
 .hero-lite { padding: 84px 0 8px; }
 .hero-lite .h1 { max-width: 20ch; }
-.hero-lite p.lead {
+.hero-lite .lead {
   font-size: 1.15rem;
   color: var(--ink-soft);
   margin: 24px 0 0;
   max-width: 62ch;
 }
 
-/* Problem→fix rows — editorial two-column rows (crimson problem label left,
-   sharp heading + fix paragraph right), divided by hairlines. Five items, no
-   odd-card gap. Stacks to a single column on mobile. */
+/* ============================================================================
+   Problem→fix rows — Services page (5 rows), reused on industry-style pages
+   ========================================================================= */
+
 .problems .wrap { padding-top: 0; }
 .problem {
   display: grid;
@@ -421,56 +490,58 @@ a:hover { text-decoration: underline; }
 }
 .problem-body p { font-size: 1.05rem; color: var(--ink-soft); margin: 0; max-width: 62ch; }
 
-/* Contact section — the chat IS the contact method. Heading + subline + the
-   shared .chat card, centered as a real contact section. */
-.contact { text-align: center; }
-.contact .se,
-.contact .h2 { /* inherit display/crimson tokens; centering comes from .contact */ }
-.contact-sub {
-  font-size: 1.1rem;
+/* ============================================================================
+   Process steps — "How we work" three-step section on homepage
+   ========================================================================= */
+
+.steps .wrap { padding-top: 0; }
+.step-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 36px;
+  margin-top: 40px;
+}
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.step-num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.step-num::before {
+  content: "";
+  width: 28px;
+  height: 1px;
+  background: var(--accent);
+  display: inline-block;
+}
+.step h3 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.25rem;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: 4px 0 0;
+}
+.step p {
+  font-size: 1rem;
   color: var(--ink-soft);
-  margin: 16px auto 0;
-  max-width: 52ch;
-}
-/* Bound the shared .chat card's width and center it (the card supplies its own
-   fixed 440px height + bordered styling from the homepage block above). */
-.contact-chat {
-  width: 100%;
-  max-width: 420px;
-  margin: 36px auto 0;
-  text-align: left;
+  margin: 4px 0 0;
 }
 
-/* Contact page — the chat is the centerpiece. Centered hero text, a prominent
-   centered card, then an email fallback + fine print below. Reuses .contact
-   (text-align:center) and the shared .chat / .contact-chat card. */
-.contact-page { padding-top: 72px; }
-.contact-page .h1 { max-width: 22ch; margin-left: auto; margin-right: auto; }
-.contact-page .lead {
-  font-size: 1.15rem;
-  color: var(--ink-soft);
-  margin: 22px auto 0;
-  max-width: 58ch;
-}
-.contact-page .contact-chat { margin-top: 40px; }
-.contact-fallback { font-size: 0.95rem; color: var(--muted); margin: 30px 0 0; }
-.contact-fine { font-size: 0.85rem; color: var(--muted); margin: 8px 0 0; }
+/* ============================================================================
+   Post-rows — Articles + Blog index, also recent-writing strip
+   ========================================================================= */
 
-@media (max-width: 840px) {
-  .hero-lite { padding: 60px 0 4px; }
-  .problem { grid-template-columns: 1fr; gap: 10px; padding: 30px 0; }
-  .problem-label { padding-top: 0; }
-  .contact-chat { max-width: 100%; }
-  .contact-page { padding-top: 52px; }
-}
-
-/* ---------------------------------------------------------------------------
-   Post rows — used on /articles and /blog index pages. Editorial two-column
-   row built on the same hairline-divided pattern as .problem on the Services
-   page: small-caps crimson meta on the left, sharp display headline + summary
-   + "Read →" cue on the right. Whole row is the link target; hover slides the
-   arrow and lights the headline crimson. Stacks to one column on mobile.
-   --------------------------------------------------------------------------- */
 .post-rows .wrap { padding-top: 0; }
 .post-row {
   display: grid;
@@ -483,7 +554,7 @@ a:hover { text-decoration: underline; }
   transition: background 0.15s;
 }
 .post-row:last-child { border-bottom: 1px solid var(--hair); }
-.post-row:hover { background: #fafaf8; text-decoration: none; }
+.post-row:hover { background: var(--paper); text-decoration: none; }
 .post-row:hover .post-row-h { color: var(--accent); }
 .post-row:hover .post-row-more { transform: translateX(4px); color: var(--accent); }
 .post-row-meta {
@@ -533,43 +604,37 @@ a:hover { text-decoration: underline; }
   transition: transform 0.15s, color 0.15s;
 }
 
-@media (max-width: 840px) {
-  .post-row { grid-template-columns: 1fr; gap: 12px; padding: 30px 0; }
-  .post-row-meta { flex-direction: row; gap: 12px; align-items: baseline; padding-top: 0; }
-}
+/* ============================================================================
+   Recent writing strip — homepage cross-link to articles
+   ========================================================================= */
 
-/* ---------------------------------------------------------------------------
-   Article body link styling — scoped to .post (legacy) AND .article-body (new
-   layout). Inline prose links default to ink-colored with a subtle hairline
-   underline; they light crimson on hover. This overrides the global
-   `a { color: var(--accent) }` rule so that interlinks scattered through an
-   article don't read as patches of red text. Other site links (nav, listings,
-   buttons) live outside these containers and are unaffected.
-   --------------------------------------------------------------------------- */
-.post a,
-.article-body a {
-  color: var(--ink);
-  text-decoration: underline;
-  text-decoration-color: var(--hair);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-  transition: color 0.15s, text-decoration-color 0.15s;
+.recent .wrap { padding-top: 0; }
+.recent-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 28px;
+  gap: 24px;
+  flex-wrap: wrap;
 }
-.post a:hover,
-.article-body a:hover {
-  color: var(--accent);
-  text-decoration-color: var(--accent);
+.recent-head .h2 { max-width: 24ch; }
+.recent-more {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--ink-soft);
+  letter-spacing: -0.01em;
+  transition: color 0.15s, transform 0.15s;
+  display: inline-block;
+  flex-shrink: 0;
 }
+.recent-more:hover { color: var(--accent); transform: translateX(4px); text-decoration: none; }
 
-/* ---------------------------------------------------------------------------
-   Article body layout (layouts/article.njk) — header, reading column, related.
-   .article-hero gives every article a proper styled header (eyebrow, display
-   H1, meta line) matching the rest of the site. .article-body constrains the
-   reading column to ~68ch for long-form readability. .article-related renders
-   up to 3 other articles at the bottom as the cluster footer.
-   --------------------------------------------------------------------------- */
-.article-page { /* container element only */ }
+/* ============================================================================
+   Article body — long-form reading column
+   ========================================================================= */
 
+.article-page { }
 .article-hero { padding: 72px 0 28px; }
 .article-hero .h1 { max-width: 22ch; letter-spacing: -0.035em; }
 .article-meta {
@@ -586,15 +651,7 @@ a:hover { text-decoration: underline; }
 .article-meta .article-sep { color: var(--hair); }
 
 .article-body { padding: 16px 0 88px; }
-.article-body .wrap { max-width: 720px; }
-.article-body h1 {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: clamp(2rem, 3.4vw, 2.8rem);
-  letter-spacing: -0.035em;
-  line-height: 1.05;
-  margin: 0 0 28px;
-}
+.article-body .wrap { max-width: var(--max-read); }
 .article-body h2 {
   font-family: var(--font-display);
   font-weight: 700;
@@ -615,11 +672,45 @@ a:hover { text-decoration: underline; }
   line-height: 1.7;
   color: var(--ink-soft);
   margin: 0 0 18px;
+  max-width: none;
 }
 .article-body strong { color: var(--ink); }
 .article-body em { font-style: italic; }
+.article-body ul, .article-body ol { padding-left: 22px; margin: 0 0 18px; color: var(--ink-soft); }
+.article-body li { margin-bottom: 8px; line-height: 1.7; font-size: 1.075rem; }
+.article-body blockquote {
+  border-left: 3px solid var(--accent);
+  margin: 26px 0;
+  padding: 4px 0 4px 22px;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.25rem;
+  line-height: 1.4;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.article-body blockquote p { font-size: inherit; color: inherit; max-width: 50ch; }
 
-.article-related { padding: 72px 0; background: var(--wash); border-top: 1px solid var(--hair); }
+/* Article inline link styling — overrides crimson default for prose */
+.article-body a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--hair);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  transition: color 0.15s, text-decoration-color 0.15s;
+}
+.article-body a:hover {
+  color: var(--accent);
+  text-decoration-color: var(--accent);
+}
+
+/* Article footer — "Keep reading" related articles */
+.article-related {
+  padding: 72px 0;
+  background: var(--paper);
+  border-top: 1px solid var(--hair);
+}
 .related-rows { display: flex; flex-direction: column; }
 .related-row {
   display: grid;
@@ -632,7 +723,7 @@ a:hover { text-decoration: underline; }
   transition: background 0.15s;
 }
 .related-row:last-child { border-bottom: 1px solid var(--hair); }
-.related-row:hover { background: rgba(255,255,255,0.5); text-decoration: none; }
+.related-row:hover { background: rgba(255, 255, 255, 0.55); text-decoration: none; }
 .related-row:hover .related-row-h { color: var(--accent); }
 .related-row-tag {
   font-family: var(--font-display);
@@ -660,19 +751,90 @@ a:hover { text-decoration: underline; }
   max-width: 60ch;
 }
 
-@media (max-width: 840px) {
-  .article-hero { padding: 56px 0 20px; }
-  .article-body { padding: 12px 0 64px; }
-  .related-row { grid-template-columns: 1fr; gap: 8px; padding: 22px 0; }
+/* ============================================================================
+   Contact page — chat-as-the-page
+   ========================================================================= */
+
+.contact-page { padding-top: 72px; padding-bottom: 88px; text-align: center; }
+.contact-page .h1 { max-width: 22ch; margin-left: auto; margin-right: auto; }
+.contact-page .lead {
+  font-size: 1.15rem;
+  color: var(--ink-soft);
+  margin: 22px auto 0;
+  max-width: 58ch;
+}
+.contact-chat {
+  width: 100%;
+  max-width: 420px;
+  margin: 40px auto 0;
+  text-align: left;
+}
+.contact-fallback { font-size: 0.95rem; color: var(--muted); margin: 30px 0 0; }
+.contact-fine { font-size: 0.85rem; color: var(--muted); margin: 8px 0 0; }
+
+/* ============================================================================
+   404 page
+   ========================================================================= */
+
+.notfound { padding: 120px 0 96px; text-align: center; }
+.notfound .ey { display: inline-block; }
+.notfound .h1 { margin: 0 auto; max-width: 22ch; }
+.notfound p { margin: 22px auto 0; max-width: 48ch; color: var(--ink-soft); }
+.notfound .actions {
+  margin-top: 36px;
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.notfound .actions a {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  letter-spacing: -0.01em;
 }
 
-/* ---------------------------------------------------------------------------
-   Floating bubble suppression — the chat-widget script auto-creates a floating
-   #bb-chat-bubble in the corner on any page that doesn't have a #bb-chat-inline
-   mount. We want Alice on the inline pages only, with no floating UI anywhere
-   else. Hide the bubble and its panel so the script can still load and serve
-   the inline mounts, but no corner bubble ever appears.
-   --------------------------------------------------------------------------- */
+/* ============================================================================
+   Responsive
+   ========================================================================= */
+
+@media (max-width: 840px) {
+  .hero { padding: 56px 0 48px; }
+  .hero .wrap { grid-template-columns: 1fr; gap: 36px; }
+  .chat { height: 400px; }
+  .hdr .wrap { padding: 14px var(--gutter); }
+  .nav { gap: 16px; font-size: 13px; }
+  .nav a.is-cta { padding: 7px 13px; font-size: 12.5px; }
+  .stats { gap: 24px; }
+  .section { padding: 56px 0; }
+  .hero-lite { padding: 56px 0 4px; }
+  .problem { grid-template-columns: 1fr; gap: 10px; padding: 32px 0; }
+  .problem-label { padding-top: 0; }
+  .step-grid { grid-template-columns: 1fr; gap: 28px; }
+  .post-row { grid-template-columns: 1fr; gap: 12px; padding: 30px 0; }
+  .post-row-meta { flex-direction: row; gap: 12px; align-items: baseline; padding-top: 0; }
+  .article-hero { padding: 52px 0 18px; }
+  .article-body { padding: 8px 0 60px; }
+  .related-row { grid-template-columns: 1fr; gap: 8px; padding: 22px 0; }
+  .climax { padding: 72px 0; }
+  .band { padding: 64px 0; }
+  .contact-chat { max-width: 100%; }
+  .contact-page { padding-top: 52px; padding-bottom: 64px; }
+  .recent-head { flex-direction: column; align-items: flex-start; gap: 8px; }
+}
+
+@media (max-width: 540px) {
+  .hdr .wrap { flex-direction: column; gap: 12px; align-items: flex-start; }
+  .nav { flex-wrap: wrap; }
+}
+
+/* ============================================================================
+   Chat widget floating-bubble suppression
+   The widget script auto-creates #bb-chat-bubble; we only want the inline
+   mount on the home + contact pages.
+   ========================================================================= */
+
 #bb-chat-bubble,
 body:not(.bb-chat-open) #bb-chat-panel:not(.bb-chat-panel--inline),
 body.bb-chat-open #bb-chat-panel:not(.bb-chat-panel--inline) {
