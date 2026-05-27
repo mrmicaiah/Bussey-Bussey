@@ -21,6 +21,15 @@ export default function (eleventyConfig) {
     );
   }
 
+  // Collection items minus the one whose `url` matches (the current page).
+  // Used by layouts/article.njk for the "Keep reading" footer. A filter is
+  // needed because this Nunjucks (3.2.4) build can't express exclude-then-limit
+  // inline: array `.push`/`.concat` and `{% set obj.prop %}` fail to compile,
+  // and selectattr/rejectattr with the `equalto` test ignore the comparison arg.
+  eleventyConfig.addFilter('excludeUrl', (items, url) =>
+    (items || []).filter((item) => item.url !== url),
+  );
+
   // Simple date filter for human-friendly dates in templates.
   eleventyConfig.addFilter('date', (value, fmt = 'medium') => {
     if (!value) return '';

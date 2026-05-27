@@ -539,14 +539,15 @@ a:hover { text-decoration: underline; }
 }
 
 /* ---------------------------------------------------------------------------
-   Article body link styling — scoped to .post (article body containers).
-   Inline prose links default to ink-colored with a subtle hairline underline;
-   they light crimson on hover. This overrides the global `a { color: var(--accent) }`
-   rule so that interlinks scattered through an article don't read as patches
-   of red text. Other site links (nav, listings, buttons) live outside .post
-   and are unaffected.
+   Article body link styling — scoped to .post (legacy) AND .article-body (new
+   layout). Inline prose links default to ink-colored with a subtle hairline
+   underline; they light crimson on hover. This overrides the global
+   `a { color: var(--accent) }` rule so that interlinks scattered through an
+   article don't read as patches of red text. Other site links (nav, listings,
+   buttons) live outside these containers and are unaffected.
    --------------------------------------------------------------------------- */
-.post a {
+.post a,
+.article-body a {
   color: var(--ink);
   text-decoration: underline;
   text-decoration-color: var(--hair);
@@ -554,7 +555,8 @@ a:hover { text-decoration: underline; }
   text-underline-offset: 3px;
   transition: color 0.15s, text-decoration-color 0.15s;
 }
-.post a:hover {
+.post a:hover,
+.article-body a:hover {
   color: var(--accent);
   text-decoration-color: var(--accent);
 }

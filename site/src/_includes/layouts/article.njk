@@ -19,25 +19,21 @@ layout: layouts/base.njk
     {{ content | safe }}
   </div></div>
 
-  {%- set related = collections.articles | reverse -%}
-  {%- if related.length > 1 -%}
+  {%- set others = collections.articles | reverse | excludeUrl(page.url) -%}
+  {%- if others.length > 0 -%}
   <section class="article-related"><div class="wrap">
     <div class="se">Keep reading</div>
     <h2 class="h2">Other writing from the firm</h2>
     <div class="rule"></div>
     <div class="related-rows">
-      {%- for post in related -%}
-        {%- if post.url != page.url -%}
-          {%- if loop.index0 < 3 -%}
-          <a class="related-row" href="{{ post.url }}">
-            <div class="related-row-tag">Article</div>
-            <div class="related-row-body">
-              <h3 class="related-row-h">{{ post.data.title }}</h3>
-              {% if post.data.summary %}<p>{{ post.data.summary }}</p>{% endif %}
-            </div>
-          </a>
-          {%- endif -%}
-        {%- endif -%}
+      {%- for post in others | batch(3) | first -%}
+        <a class="related-row" href="{{ post.url }}">
+          <div class="related-row-tag">Article</div>
+          <div class="related-row-body">
+            <h3 class="related-row-h">{{ post.data.title }}</h3>
+            {% if post.data.summary %}<p>{{ post.data.summary }}</p>{% endif %}
+          </div>
+        </a>
       {%- endfor -%}
     </div>
   </div></section>
