@@ -2,6 +2,18 @@
 
 This is a two-part Eleventy structural change. Do BOTH parts in the same commit. Build to confirm before committing. DO NOT push — Micaiah pushes manually after review.
 
+## Part 0 — Sync first (DO THIS BEFORE ANYTHING ELSE)
+
+Before doing any edits, update your working copy to the latest `main`. Several files referenced in this task were just pushed and may not exist in a stale clone. Run:
+
+```
+git fetch origin
+git checkout main
+git pull --ff-only origin main
+```
+
+If `git pull` reports any local uncommitted changes blocking the fast-forward, STOP and report — do not stash, do not force, do not guess. Once your working copy is on the latest `main`, continue.
+
 ## Context
 
 - The site is Eleventy. Layouts live at `site/src/_includes/layouts/`.
