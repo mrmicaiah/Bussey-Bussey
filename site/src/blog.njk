@@ -1,27 +1,34 @@
 ---
 layout: layouts/base.njk
 title: Blog
-description: Shorter cadence — notes, updates, things we built recently.
+description: Shorter cadence — notes, updates, and things we built recently for service businesses.
 permalink: /blog/
 ---
 
-<div class="container">
-  <h1>Blog</h1>
-  <p class="muted">Shorter posts: things we built, what we're thinking about, updates from the firm.</p>
+<section class="hero-lite"><div class="wrap">
+  <div class="ey">The firm</div>
+  <h1 class="h1">Blog</h1>
+  <p class="lead">Shorter posts. Things we built, what we're thinking about, and updates from the firm.</p>
+</div></section>
+
+<section class="section post-rows"><div class="wrap">
 
   {% if collections.blog.length > 0 %}
-    <ul class="post-list">
-      {% for post in collections.blog %}
-        <li>
-          <a href="{{ post.url }}">
-            <h3>{{ post.data.title }}</h3>
-            <p class="muted small">{{ post.date | date }}</p>
-            {% if post.data.summary %}<p>{{ post.data.summary }}</p>{% endif %}
-          </a>
-        </li>
-      {% endfor %}
-    </ul>
+    {% for post in collections.blog | reverse %}
+      <a class="post-row" href="{{ post.url }}">
+        <div class="post-row-meta">
+          <span class="post-row-date">{{ post.date | date }}</span>
+          <span class="post-row-tag">Post</span>
+        </div>
+        <div class="post-row-body">
+          <h2 class="post-row-h">{{ post.data.title }}</h2>
+          {% if post.data.summary %}<p>{{ post.data.summary }}</p>{% endif %}
+          <span class="post-row-more">Read &#8594;</span>
+        </div>
+      </a>
+    {% endfor %}
   {% else %}
     <p class="muted">No posts published yet.</p>
   {% endif %}
-</div>
+
+</div></section>
