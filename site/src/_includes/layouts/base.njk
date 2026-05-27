@@ -3,8 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{% if title %}{{ title }} · {{ site.name }}{% else %}{{ site.name }}{% endif %}</title>
+    <title>{% if title %}{{ title }} · {{ site.name }}{% else %}{{ site.name }} · {{ site.tagline }}{% endif %}</title>
     <meta name="description" content="{{ description or site.tagline }}" />
+    <meta name="theme-color" content="#0d0d0c" />
     {# OpenGraph #}
     <meta property="og:type" content="{% if og_type %}{{ og_type }}{% else %}website{% endif %}" />
     <meta property="og:title" content="{% if title %}{{ title }} · {{ site.name }}{% else %}{{ site.name }}{% endif %}" />
@@ -12,10 +13,10 @@
     <meta property="og:url" content="{{ site.url }}{{ page.url }}" />
     <meta property="og:site_name" content="{{ site.name }}" />
     <meta name="twitter:card" content="summary" />
-    {# Link to feed for the article + blog pages #}
+    {# Feed + sitemap #}
     <link rel="alternate" type="application/rss+xml" href="/feed.xml" title="{{ site.name }} — articles" />
     <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
-    {# Fonts: Space Grotesk (display) + Instrument Sans (body) — two weights each. #}
+    {# Fonts: Space Grotesk (display) + Instrument Sans (body) #}
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Instrument+Sans:wght@400;500&display=swap" />
