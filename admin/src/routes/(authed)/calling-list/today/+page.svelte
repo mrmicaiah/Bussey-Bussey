@@ -185,7 +185,7 @@
   .action-link { color: var(--accent); text-decoration: none; }
   .action-link:hover { text-decoration: underline; }
   .notes {
-    background: #fafaf8;
+    background: var(--surface-2);
     border: 1px solid var(--border);
     padding: 0.45rem 0.7rem;
     margin: 0;
