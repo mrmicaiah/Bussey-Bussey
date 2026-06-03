@@ -422,10 +422,14 @@ export async function completePitchHandler(ctx: HandlerContext): Promise<Respons
 
 // ─── Demo-spec write (PUT) ──────────────────────────────────────────────────────
 //
-// PUT /api/admin/demo-specs/:id — edit body and/or status (draft|ready|handed_off).
-// Updates only present fields + updated_at. One DB.batch: [UPDATE, audit].
+// PUT /api/admin/demo-specs/:id — edit body ONLY (dashboard spec §4.3 option b).
+// Status transitions have a single canonical path: PUT /api/admin/demo-specs/:id/status
+// (lifecycle-validated, timestamp-stamping). A request carrying `status` here is
+// rejected 400 so stale clients fail loudly instead of bypassing the lifecycle.
+// Updates body + updated_at when present. One DB.batch: [UPDATE, audit].
 
-const DEMO_SPEC_STATUSES = new Set(['draft', 'ready', 'handed_off']);
+const DEMO_SPEC_FULL_ROW =
+  `SELECT id, opportunity_id, assessment_id, body, status, author_kind, created_by_user_id, created_at, updated_at, handed_off_at, built_at FROM demo_spec WHERE id = ?`;
 
 export async function updateDemoSpecHandler(ctx: HandlerContext): Promise<Response> {
   if (!ctx.session) return json({ error: 'unauthenticated' }, { status: 401 });
@@ -435,51 +439,113 @@ export async function updateDemoSpecHandler(ctx: HandlerContext): Promise<Respon
   const body = await readJsonObject(ctx.request);
   if (!body) return json({ error: 'invalid_request' }, { status: 400 });
 
+  if (Object.prototype.hasOwnProperty.call(body, 'status')) {
+    return json(
+      {
+        error: 'status_not_allowed_here',
+        message: 'status transitions use PUT /api/admin/demo-specs/:id/status',
+      },
+      { status: 400 },
+    );
+  }
+
   const cur = await ctx.env.DB.prepare(`SELECT id FROM demo_spec WHERE id = ?`)
     .bind(id)
     .first<{ id: string }>();
   if (!cur) return json({ error: 'not_found' }, { status: 404 });
 
-  const setParts: string[] = [];
-  const binds: unknown[] = [];
-  const changed: string[] = [];
   if (Object.prototype.hasOwnProperty.call(body, 'body')) {
-    setParts.push(`body = ?`);
-    binds.push(stringOrNull(body['body']));
-    changed.push('body');
-  }
-  if (Object.prototype.hasOwnProperty.call(body, 'status')) {
-    const status = typeof body['status'] === 'string' ? body['status'] : '';
-    if (!DEMO_SPEC_STATUSES.has(status)) return json({ error: 'invalid_status' }, { status: 400 });
-    setParts.push(`status = ?`);
-    binds.push(status);
-    changed.push('status');
-  }
-
-  if (setParts.length > 0) {
-    setParts.push(`updated_at = ?`);
-    binds.push(new Date().toISOString());
-    binds.push(id);
     await ctx.env.DB.batch([
-      ctx.env.DB.prepare(`UPDATE demo_spec SET ${setParts.join(', ')} WHERE id = ?`).bind(...binds),
+      ctx.env.DB.prepare(`UPDATE demo_spec SET body = ?, updated_at = ? WHERE id = ?`).bind(
+        stringOrNull(body['body']),
+        new Date().toISOString(),
+        id,
+      ),
       auditStatement(ctx.env, {
         actorType: 'admin_user',
         actorId: ctx.session.subjectId,
         action: 'demo_spec.update',
         entityType: 'demo_spec',
         entityId: id,
-        changes: { fields: changed },
+        changes: { fields: ['body'] },
         ipAddress: ctx.session.ipAddress,
         userAgent: ctx.session.userAgent,
       }),
     ]);
   }
 
-  const row = await ctx.env.DB.prepare(
-    `SELECT id, opportunity_id, assessment_id, body, status, author_kind, created_by_user_id, created_at, updated_at FROM demo_spec WHERE id = ?`,
-  )
+  const row = await ctx.env.DB.prepare(DEMO_SPEC_FULL_ROW).bind(id).first();
+  return json({ ok: true, demo_spec: row });
+}
+
+// ─── Demo-spec status transition (PUT) ─────────────────────────────────────────
+//
+// PUT /api/admin/demo-specs/:id/status — the ONE canonical lifecycle path (§4.3).
+// Lifecycle order draft → ready → handed_off → built; only |step| === 1 moves are
+// allowed (forward progress, or one step back for correction). Skips → 409
+// invalid_transition; the current status again → 409 same_status (a clearer signal
+// to the client than a silent no-op). Server stamps handed_off_at / built_at on the
+// corresponding FORWARD moves only. One DB.batch: [UPDATE, audit].
+
+const DEMO_SPEC_LIFECYCLE = ['draft', 'ready', 'handed_off', 'built'] as const;
+
+export async function updateDemoSpecStatusHandler(ctx: HandlerContext): Promise<Response> {
+  if (!ctx.session) return json({ error: 'unauthenticated' }, { status: 401 });
+  const id = ctx.params['id'];
+  if (!id) return json({ error: 'invalid_id' }, { status: 400 });
+
+  const body = await readJsonObject(ctx.request);
+  if (!body) return json({ error: 'invalid_request' }, { status: 400 });
+
+  const to = typeof body['status'] === 'string' ? body['status'] : '';
+  const toIdx = DEMO_SPEC_LIFECYCLE.indexOf(to as (typeof DEMO_SPEC_LIFECYCLE)[number]);
+  if (toIdx === -1) return json({ error: 'invalid_status' }, { status: 400 });
+
+  const cur = await ctx.env.DB.prepare(`SELECT id, status FROM demo_spec WHERE id = ?`)
     .bind(id)
-    .first();
+    .first<{ id: string; status: string }>();
+  if (!cur) return json({ error: 'not_found' }, { status: 404 });
+
+  const fromIdx = DEMO_SPEC_LIFECYCLE.indexOf(cur.status as (typeof DEMO_SPEC_LIFECYCLE)[number]);
+  const step = toIdx - fromIdx;
+  if (step === 0) return json({ error: 'same_status' }, { status: 409 });
+  if (Math.abs(step) > 1) return json({ error: 'invalid_transition' }, { status: 409 });
+
+  const now = new Date().toISOString();
+  const setParts = [`status = ?`, `updated_at = ?`];
+  const binds: unknown[] = [to, now];
+  // Timestamps are stamped on the FORWARD move only. Backward (correction) moves
+  // leave handed_off_at / built_at as they were: the stamp records that the event
+  // happened, and correcting the status back doesn't un-happen it (audit-trail
+  // integrity). A re-forward move overwrites with the newer time.
+  const stamped: Record<string, string> = {};
+  if (step === 1 && to === 'handed_off') {
+    setParts.push(`handed_off_at = ?`);
+    binds.push(now);
+    stamped['handed_off_at_set'] = now;
+  }
+  if (step === 1 && to === 'built') {
+    setParts.push(`built_at = ?`);
+    binds.push(now);
+    stamped['built_at_set'] = now;
+  }
+  binds.push(id);
+
+  await ctx.env.DB.batch([
+    ctx.env.DB.prepare(`UPDATE demo_spec SET ${setParts.join(', ')} WHERE id = ?`).bind(...binds),
+    auditStatement(ctx.env, {
+      actorType: 'admin_user',
+      actorId: ctx.session.subjectId,
+      action: 'demo_spec.status_changed',
+      entityType: 'demo_spec',
+      entityId: id,
+      changes: { from: cur.status, to, ...stamped },
+      ipAddress: ctx.session.ipAddress,
+      userAgent: ctx.session.userAgent,
+    }),
+  ]);
+
+  const row = await ctx.env.DB.prepare(DEMO_SPEC_FULL_ROW).bind(id).first();
   return json({ ok: true, demo_spec: row });
 }
 

@@ -7,7 +7,7 @@ import { leadsQueueHandler, leadCardHandler, listScriptVariantsHandler, logLeadA
 import { listProspectsHandler, getProspectWorkspaceHandler } from './prospects';
 import { getDashboardHandler } from './dashboard';
 import { setColdCallingTargetHandler } from './cold-calling-target';
-import { saveAssessmentNotesHandler, completeDigHandler, completePitchHandler, updateDemoSpecHandler } from './assessments';
+import { saveAssessmentNotesHandler, completeDigHandler, completePitchHandler, updateDemoSpecHandler, updateDemoSpecStatusHandler } from './assessments';
 import { listClients, getClient, createClient, updateClient, deleteClient } from './clients';
 import {
   listOpportunities,
@@ -226,8 +226,14 @@ export const adminRoutes: Route[] = [
   {
     method: 'PUT',
     pattern: new URLPattern({ pathname: '/api/admin/demo-specs/:id' }),
-    description: 'Edit a demo spec (body / status draft|ready|handed_off). Atomic.',
+    description: 'Edit a demo spec body (body-only; status transitions use /status). Atomic.',
     handler: updateDemoSpecHandler,
+  },
+  {
+    method: 'PUT',
+    pattern: new URLPattern({ pathname: '/api/admin/demo-specs/:id/status' }),
+    description: 'Demo-spec lifecycle transition (draft→ready→handed_off→built, ±1 step; stamps handed_off_at/built_at forward). Atomic.',
+    handler: updateDemoSpecStatusHandler,
   },
 
   // Clients

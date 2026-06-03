@@ -7,7 +7,7 @@
   import { onMount } from 'svelte';
   import { base } from '$app/paths';
   import { api, ApiError } from '$lib/api';
-  import type { DashboardResponse, ColdCallingTargetResponse } from '$lib/types';
+  import type { DashboardResponse, ColdCallingTargetResponse, DemoSpecStatusRequest, DemoSpecStatusResponse } from '$lib/types';
   import Button from '$lib/components/Button.svelte';
 
   let { data }: { data: { user: import('$lib/types').AdminUser } } = $props();
@@ -16,8 +16,10 @@
   let loading = $state(true);
   let error = $state<string | null>(null);
 
-  // Mark-built confirm dialog (display-only this step — step 5 wires it).
+  // Mark-built confirm dialog — Confirm PUTs the status transition, then refetches.
   let markBuiltFor = $state<{ company: string; demo_spec_id: string } | null>(null);
+  let markBuiltSaving = $state(false);
+  let markBuiltError = $state<string | null>(null);
 
   // Cold-calling push-target write state: debounced PUT, optimistic, error-reverting.
   let ccSaving = $state(false);
@@ -84,9 +86,32 @@
     }
   }
 
-  function confirmMarkBuilt() {
-    // wiring next (step 5) — intentionally does not POST the status transition.
-    console.log('[dashboard] mark-built is display-only this step');
+  // Confirm: handed_off → built via the lifecycle endpoint, then refetch the
+  // dashboard (the amber demo pill goes green server-side). On failure keep the
+  // dialog open with an inline error — retry or cancel.
+  async function confirmMarkBuilt() {
+    if (!markBuiltFor || markBuiltSaving) return;
+    markBuiltSaving = true;
+    markBuiltError = null;
+    try {
+      const body: DemoSpecStatusRequest = { status: 'built' };
+      await api.put<DemoSpecStatusResponse>(`/api/admin/demo-specs/${markBuiltFor.demo_spec_id}/status`, body);
+      markBuiltFor = null;
+      await load();
+    } catch (e) {
+      markBuiltError = e instanceof ApiError ? `Couldn't mark built (${e.errorCode ?? e.status}).` : 'Network error.';
+    } finally {
+      markBuiltSaving = false;
+    }
+  }
+
+  function openMarkBuilt(company: string, demo_spec_id: string) {
+    markBuiltError = null;
+    markBuiltFor = { company, demo_spec_id };
+  }
+  function closeMarkBuilt() {
+    if (markBuiltSaving) return;
+    markBuiltError = null;
     markBuiltFor = null;
   }
 
@@ -290,7 +315,7 @@
                 <span class="pill pill-{p.spec}" title={pillTitle('spec', p.spec)}>spec</span>
                 <span class="pill pill-{p.demo}" title={pillTitle('demo', p.demo)}>demo</span>
                 {#if p.demo === 'amber'}
-                  <button type="button" class="mark-built" onclick={() => (markBuiltFor = { company: p.company, demo_spec_id: p.demo_spec_id })} title="Wiring next (step 5)">Mark built</button>
+                  <button type="button" class="mark-built" onclick={() => openMarkBuilt(p.company, p.demo_spec_id)} title="Confirm the demo is built and uploaded">Mark built</button>
                 {/if}
                 <span class="pill pill-{p.price}" title={pillTitle('price', p.price)}>price</span>
               </div>
@@ -309,17 +334,17 @@
   </div>
 {/if}
 
-<!-- Mark-built confirm dialog — renders, but Confirm is a no-op this step (wiring next). -->
+<!-- Mark-built confirm dialog — Confirm fires the handed_off→built transition. -->
 {#if markBuiltFor}
-  <div class="backdrop" role="presentation" onclick={() => (markBuiltFor = null)}></div>
+  <div class="backdrop" role="presentation" onclick={closeMarkBuilt}></div>
   <div class="dialog surface" role="dialog" aria-modal="true" aria-labelledby="mb-title">
     <h2 id="mb-title">Mark demo built for {markBuiltFor.company}?</h2>
     <p class="muted small">This confirms the demo is built and uploaded.</p>
+    {#if markBuiltError}<p class="mb-err">{markBuiltError}</p>{/if}
     <div class="dialog-actions">
-      <Button variant="secondary" onclick={() => (markBuiltFor = null)}>Cancel</Button>
-      <Button onclick={confirmMarkBuilt}>Confirm</Button>
+      <Button variant="secondary" onclick={closeMarkBuilt} disabled={markBuiltSaving}>Cancel</Button>
+      <Button onclick={confirmMarkBuilt} disabled={markBuiltSaving}>{markBuiltSaving ? 'Saving…' : 'Confirm'}</Button>
     </div>
-    <p class="muted small wiring">Wiring next (step 5) — Confirm does not yet save.</p>
   </div>
 {/if}
 
@@ -431,5 +456,5 @@
   }
   .dialog h2 { margin: 0 0 var(--space-2); font-size: 1.1rem; }
   .dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-3); margin-top: var(--space-4); }
-  .wiring { margin: var(--space-2) 0 0; text-align: right; }
+  .mb-err { margin: var(--space-2) 0 0; font-size: 0.85rem; color: var(--danger); }
 </style>

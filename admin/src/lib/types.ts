@@ -392,12 +392,26 @@ export type CompletePitchResponse = {
   demo_spec_id: string;
 };
 
+// Body-only since Dashboard step 5 — status transitions have one canonical path,
+// PUT /api/admin/demo-specs/:id/status (sending status here is rejected 400).
 export type UpdateDemoSpecRequest = {
   body?: string | null;
-  status?: DemoSpecStatus;
 };
 
 export type UpdateDemoSpecResponse = {
+  ok: true;
+  demo_spec: DemoSpec;
+};
+
+// ── Studio44 Dashboard — step 5: demo-spec lifecycle transition (§4.3) ────────
+// One step forward or back along draft → ready → handed_off → built. The server
+// rejects skips (409 invalid_transition) and same-status (409 same_status), and
+// stamps handed_off_at / built_at on the corresponding forward moves.
+export type DemoSpecStatusRequest = {
+  status: DemoSpecStatus;
+};
+
+export type DemoSpecStatusResponse = {
   ok: true;
   demo_spec: DemoSpec;
 };

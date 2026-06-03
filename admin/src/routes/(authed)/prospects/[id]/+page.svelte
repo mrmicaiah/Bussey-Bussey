@@ -18,6 +18,8 @@
     CompletePitchResponse,
     UpdateDemoSpecRequest,
     UpdateDemoSpecResponse,
+    DemoSpecStatusRequest,
+    DemoSpecStatusResponse,
     DemoSpecStatus,
   } from '$lib/types';
   import NotesField from '$lib/components/prospect-workspace/NotesField.svelte';
@@ -53,13 +55,21 @@
   let handingOff = $state(false);
   let handoffError = $state<string | null>(null);
 
-  // Demo-spec editor state.
+  // Demo-spec editor state. The body editor saves via the body-only PUT; the status
+  // select is a separate live control on the lifecycle endpoint (step 5).
   let demoBody = $state('');
   let demoStatus = $state<DemoSpecStatus>('draft');
   let demoDirty = $state(false);
   let demoSaving = $state(false);
   let demoSaved = $state(false);
   let demoError = $state<string | null>(null);
+
+  // Demo-spec status control state (PUT /api/admin/demo-specs/:id/status).
+  let statusPending = $state<DemoSpecStatus | null>(null); // forward move awaiting confirm
+  let statusSaving = $state(false);
+  let statusError = $state<string | null>(null);
+  let statusToast = $state<string | null>(null);
+  let statusToastTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Save state.
   let dirty = $state(false);
@@ -103,6 +113,9 @@
       demoDirty = false;
       demoSaved = false;
       demoError = null;
+      statusPending = null;
+      statusError = null;
+      statusToast = null;
     } catch (e) {
       error =
         e instanceof ApiError
@@ -227,16 +240,16 @@
     demoDirty = true;
     demoSaved = false;
   }
+  // Body-only save — status moved to its own lifecycle endpoint (step 5).
   async function saveDemoSpec() {
     if (demoSaving || !ws?.demo_spec) return;
     demoSaving = true;
     demoError = null;
     try {
-      const body: UpdateDemoSpecRequest = { body: demoBody, status: demoStatus };
+      const body: UpdateDemoSpecRequest = { body: demoBody };
       const res = await api.put<UpdateDemoSpecResponse>(`/api/admin/demo-specs/${ws.demo_spec.id}`, body);
       if (ws.demo_spec) {
         ws.demo_spec.body = res.demo_spec.body;
-        ws.demo_spec.status = res.demo_spec.status;
       }
       demoDirty = false;
       demoSaved = true;
@@ -245,6 +258,64 @@
     } finally {
       demoSaving = false;
     }
+  }
+
+  // ── Demo-spec status control (lifecycle endpoint) ──────────────────────────
+  // Lifecycle order; transitions are ±1 step (server-enforced; mirrored here so the
+  // operator gets the message before a round-trip).
+  const DEMO_STATUS_ORDER: DemoSpecStatus[] = ['draft', 'ready', 'handed_off', 'built'];
+  const DEMO_STATUS_LABEL: Record<DemoSpecStatus, string> = {
+    draft: 'draft', ready: 'ready', handed_off: 'handed off', built: 'built',
+  };
+
+  function onStatusSelect() {
+    if (!ws?.demo_spec || statusSaving) return;
+    statusError = null;
+    statusPending = null;
+    const from = ws.demo_spec.status;
+    const to = demoStatus;
+    if (to === from) return;
+    const step = DEMO_STATUS_ORDER.indexOf(to) - DEMO_STATUS_ORDER.indexOf(from);
+    if (Math.abs(step) > 1) {
+      demoStatus = from; // revert the select
+      statusError = 'Move one step at a time.';
+      return;
+    }
+    // Forward into handed_off / built stamps a timestamp — confirm first.
+    if (step === 1 && (to === 'handed_off' || to === 'built')) {
+      statusPending = to;
+      return;
+    }
+    // draft↔ready and backward corrections fire directly.
+    void putStatus(to);
+  }
+
+  async function putStatus(to: DemoSpecStatus) {
+    if (!ws?.demo_spec || statusSaving) return;
+    const from = ws.demo_spec.status;
+    statusSaving = true;
+    statusError = null;
+    try {
+      const body: DemoSpecStatusRequest = { status: to };
+      const res = await api.put<DemoSpecStatusResponse>(`/api/admin/demo-specs/${ws.demo_spec.id}/status`, body);
+      if (ws.demo_spec) ws.demo_spec.status = res.demo_spec.status;
+      demoStatus = res.demo_spec.status;
+      statusPending = null;
+      statusToast = `Moved to ${DEMO_STATUS_LABEL[res.demo_spec.status]}`;
+      if (statusToastTimer) clearTimeout(statusToastTimer);
+      statusToastTimer = setTimeout(() => (statusToast = null), 2500);
+    } catch (e) {
+      demoStatus = from; // revert to the persisted value
+      statusPending = null;
+      statusError = e instanceof ApiError ? `Couldn't move (${e.errorCode ?? e.status}).` : 'Network error.';
+    } finally {
+      statusSaving = false;
+    }
+  }
+
+  function cancelStatusPending() {
+    if (ws?.demo_spec) demoStatus = ws.demo_spec.status; // revert the select
+    statusPending = null;
   }
 
   function fmtDateTimeShort(iso: string): string {
@@ -569,12 +640,32 @@
             <div class="container">
               <div class="container-head">
                 <span class="c-title">Demo-spec prompt</span>
-                <select class="demo-status" bind:value={demoStatus} onchange={markDemoDirty} disabled={demoSaving}>
-                  <option value="draft">draft</option>
-                  <option value="ready">ready</option>
-                  <option value="handed_off">handed off</option>
-                </select>
+                <div class="status-control">
+                  {#if statusToast}<span class="status-toast small">✓ {statusToast}</span>{/if}
+                  <select class="demo-status" bind:value={demoStatus} onchange={onStatusSelect} disabled={statusSaving} aria-label="Demo-spec status">
+                    <option value="draft">draft</option>
+                    <option value="ready">ready</option>
+                    <option value="handed_off">handed off</option>
+                    <option value="built">built</option>
+                  </select>
+                </div>
               </div>
+              {#if statusError}<div class="status-err small">{statusError}</div>{/if}
+              {#if statusPending}
+                <div class="status-confirm">
+                  <span>
+                    {statusPending === 'handed_off'
+                      ? 'Hand this spec off to the builder? Stamps the handoff time.'
+                      : 'Mark the demo built? Stamps the build time.'}
+                  </span>
+                  <div class="status-confirm-actions">
+                    <button type="button" class="ghost" onclick={cancelStatusPending} disabled={statusSaving}>Cancel</button>
+                    <button type="button" class="save" onclick={() => statusPending && putStatus(statusPending)} disabled={statusSaving}>
+                      {statusSaving ? 'Moving…' : statusPending === 'handed_off' ? 'Hand off' : 'Mark built'}
+                    </button>
+                  </div>
+                </div>
+              {/if}
               <NotesField
                 label="The brief"
                 hint="What to build / emphasize / ignore / the value to land. Prose — Alice authors this at L4."
@@ -771,4 +862,16 @@
     border: 1px solid var(--s44-border); border-radius: 6px; padding: 0.2rem 0.4rem;
   }
   .demo-actions { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.6rem; }
+
+  /* Demo-spec status control (step 5) — confirm strip mirrors .flip-confirm. */
+  .status-control { display: flex; align-items: center; gap: 0.5rem; }
+  .status-toast { color: var(--s44-green); font-size: 0.78rem; }
+  .status-err { color: #fca5a5; font-size: 0.82rem; margin-top: 0.4rem; }
+  .status-confirm {
+    margin-top: 0.6rem; border: 1px solid var(--s44-amber); border-radius: 10px;
+    padding: 0.7rem 0.85rem; background: rgba(245, 166, 35, 0.08);
+    display: flex; flex-direction: column; gap: 0.5rem;
+    color: var(--s44-text); font-size: 0.9rem;
+  }
+  .status-confirm-actions { display: flex; justify-content: flex-end; gap: 0.6rem; }
 </style>
