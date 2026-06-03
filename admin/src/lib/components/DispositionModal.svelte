@@ -135,7 +135,7 @@
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   }
   .summary {
-    background: #fafaf8;
+    background: var(--surface-2);
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 0.7rem 1rem;

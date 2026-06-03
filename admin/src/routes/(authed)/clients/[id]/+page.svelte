@@ -265,7 +265,7 @@
   .count {
     margin-left: 0.4rem;
     padding: 1px 7px;
-    background: #ececea;
+    background: var(--border-soft);
     border-radius: 999px;
     font-size: 0.75rem;
     color: var(--muted);

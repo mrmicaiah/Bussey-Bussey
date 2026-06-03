@@ -268,9 +268,11 @@
     max-width: 75%;
     white-space: pre-wrap;
   }
-  .bubble-user      { align-self: flex-end;   background: #1f3a5f; color: #fff; }
-  .bubble-user .meta { color: rgba(255,255,255,0.7); }
-  .bubble-assistant { align-self: flex-start; background: #f0f0ec; color: #1a1a1a; }
+  /* Dark chat pattern (reskin pass 3): crimson tint = the brand's voice (assistant),
+     neutral surface = the visitor. Alignment unchanged. The tint is the established
+     rgba-off-token precedent (no token expresses a low-opacity accent). */
+  .bubble-user      { align-self: flex-end;   background: var(--surface-2); border: 1px solid var(--border-soft); color: var(--text); }
+  .bubble-assistant { align-self: flex-start; background: rgba(212, 11, 30, 0.12); border: 1px solid rgba(212, 11, 30, 0.35); color: var(--text); }
   .meta { margin-bottom: 0.2rem; }
   .content { line-height: 1.45; }
 </style>
