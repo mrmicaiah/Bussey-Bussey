@@ -366,9 +366,10 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--surface);
+    color: var(--text);
     font: inherit;
   }
-  .field select:disabled, .field textarea:disabled { background: #f5f5f3; }
+  .field select:disabled, .field textarea:disabled { background: var(--border); }
   .field textarea { min-height: 4rem; resize: vertical; }
   .num { text-align: right; }
 </style>

@@ -113,7 +113,7 @@
     row-gap: 0.15rem;
     width: 100%;
     text-align: left;
-    background: #fafaf8;
+    background: var(--surface-2);
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 0.45rem 0.6rem;
@@ -121,9 +121,9 @@
     font: inherit;
     color: var(--text);
   }
-  li button:hover:not(:disabled) { border-color: var(--accent); background: #fff; }
+  li button:hover:not(:disabled) { border-color: var(--accent); background: var(--surface); }
   li button:disabled { opacity: 0.65; cursor: not-allowed; }
-  li button.on-proposal { background: #d8e8d8; border-color: #b8d6b8; }
+  li button.on-proposal { background: rgba(93, 202, 165, 0.12); border-color: rgba(93, 202, 165, 0.35); }
   li button.dimmed { opacity: 0.45; }
   .name { font-weight: 500; font-size: 0.92rem; }
   .rate { font-variant-numeric: tabular-nums; font-size: 0.88rem; color: var(--muted); }
@@ -134,12 +134,12 @@
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #0f4d2f;
+    color: var(--success);
   }
   .custom-add {
     width: 100%;
     text-align: left;
-    background: #fafaf8;
+    background: var(--surface-2);
     border: 1px dashed var(--border);
     border-radius: 6px;
     padding: 0.5rem 0.6rem;
@@ -147,6 +147,6 @@
     font: inherit;
     color: var(--accent);
   }
-  .custom-add:hover:not(:disabled) { background: #fff; border-color: var(--accent); }
+  .custom-add:hover:not(:disabled) { background: var(--surface); border-color: var(--accent); }
   .custom-add:disabled { opacity: 0.55; cursor: not-allowed; }
 </style>

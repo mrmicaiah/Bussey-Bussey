@@ -39,20 +39,22 @@
     margin-bottom: var(--space-4);
     font-size: 0.92rem;
   }
-  .banner-accepted   { background: #d8e8d8; color: #0f4d2f; border: 1px solid #b8d6b8; }
-  .banner-stale      { background: #fdf1d7; color: #6b4500; border: 1px solid #efd58a; }
-  .banner-superseded { background: #ececea; color: #6b6b66; border: 1px solid #d0d0cc; }
-  .banner-declined   { background: #fce8e6; color: #5b1817; border: 1px solid #f1c0bd; }
+  /* Full-width status panels (not badges) — token-family tints per the
+     rgba-off-token precedent: success / warning / neutral / crimson families. */
+  .banner-accepted   { background: rgba(93, 202, 165, 0.12); color: var(--success); border: 1px solid rgba(93, 202, 165, 0.35); }
+  .banner-stale      { background: rgba(250, 199, 117, 0.12); color: var(--warning); border: 1px solid rgba(250, 199, 117, 0.35); }
+  .banner-superseded { background: var(--surface-2); color: var(--muted); border: 1px solid var(--border); }
+  .banner-declined   { background: rgba(212, 11, 30, 0.12); color: var(--danger); border: 1px solid rgba(212, 11, 30, 0.35); }
   button {
     margin-left: var(--space-3);
-    background: #fff;
-    border: 1px solid #6b4500;
-    color: #6b4500;
+    background: transparent;
+    border: 1px solid var(--warning);
+    color: var(--warning);
     padding: 0.3rem 0.6rem;
     border-radius: 4px;
     cursor: pointer;
     font: inherit;
   }
-  button:hover { background: #fff8e6; }
+  button:hover { background: rgba(250, 199, 117, 0.12); }
   .reason { font-style: italic; }
 </style>

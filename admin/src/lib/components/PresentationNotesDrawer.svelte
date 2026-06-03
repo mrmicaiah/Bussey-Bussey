@@ -107,8 +107,10 @@
     font: inherit;
     resize: vertical;
     margin-top: 0.5rem;
+    background: var(--surface);
+    color: var(--text);
   }
   textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-  textarea:disabled { background: #f5f5f3; }
+  textarea:disabled { background: var(--border); }
   .error { color: var(--danger); }
 </style>

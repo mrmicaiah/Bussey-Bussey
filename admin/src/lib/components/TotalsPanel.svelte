@@ -99,5 +99,5 @@
   .per-month { font-size: 0.75rem; color: var(--muted); margin-left: 2px; }
   .divider { height: 1px; background: var(--border); margin: var(--space-3) 0; }
   .margin { margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px dashed var(--border); }
-  code { background: #ececea; padding: 1px 4px; border-radius: 3px; font-size: 0.8rem; }
+  code { background: rgba(255,255,255,0.06); padding: 1px 4px; border-radius: 3px; font-size: 0.8rem; }
 </style>

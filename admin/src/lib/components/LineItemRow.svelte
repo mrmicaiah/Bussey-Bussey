@@ -137,8 +137,11 @@
     letter-spacing: 0.04em;
     margin-right: 0.4rem;
   }
-  .bucket-setup { background: #e2eaf3; color: #1f3a5f; }
-  .bucket-monthly { background: #fde7c4; color: #b15c00; }
+  /* Bucket pills mapped to the badge families: setup = crimson (navy was the old
+     accent), monthly = amber. Text uses the family's light text token — --accent
+     itself lacks contrast at this size on dark. */
+  .bucket-setup { background: rgba(212, 11, 30, 0.12); color: var(--danger); }
+  .bucket-monthly { background: rgba(250, 199, 117, 0.12); color: var(--warning); }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
   .qty { width: 70px; text-align: right; }
   .unit-price { width: 95px; text-align: right; }
@@ -154,9 +157,9 @@
     padding: 0 0.4rem;
   }
   .remove:hover { color: var(--danger); }
-  tr.saving td { background: #fafaf8; }
+  tr.saving td { background: var(--surface-2); }
   .error { color: var(--danger); }
-  input { padding: 0.25rem 0.5rem; border: 1px solid var(--border); border-radius: 4px; font: inherit; }
+  input { padding: 0.25rem 0.5rem; border: 1px solid var(--border); border-radius: 4px; font: inherit; background: var(--surface); color: var(--text); }
   input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-  input:disabled { background: #f5f5f3; color: var(--muted); }
+  input:disabled { background: var(--border); color: var(--muted); }
 </style>

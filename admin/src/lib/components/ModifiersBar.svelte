@@ -107,7 +107,7 @@
   .row { display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: flex-end; }
   label { display: flex; flex-direction: column; gap: 0.2rem; }
   label span { font-size: 0.78rem; color: var(--muted); }
-  input { width: 80px; padding: 0.3rem 0.5rem; border: 1px solid var(--border); border-radius: 4px; font: inherit; text-align: right; }
+  input { width: 80px; padding: 0.3rem 0.5rem; border: 1px solid var(--border); border-radius: 4px; font: inherit; text-align: right; background: var(--surface); color: var(--text); }
   input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-  input:disabled { background: #f5f5f3; }
+  input:disabled { background: var(--border); }
 </style>
