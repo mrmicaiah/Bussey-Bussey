@@ -1,2 +1,6 @@
 # Studio87 dispatch result audit trail — local only, not for commit.
 print-*.md
+# Mailbox-1 — file-based dispatch handoff.
+inbox-*.md
+outbox-*.md
+*.md.tmp

@@ -14,7 +14,8 @@
       "Bash(npm run:*)",
       "Bash(node --version)",
       "Bash(ls:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(mv:*)"
     ],
     "deny": [
       "Bash(rm -rf:*)",
