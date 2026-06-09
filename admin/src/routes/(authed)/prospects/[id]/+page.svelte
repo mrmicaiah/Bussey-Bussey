@@ -637,6 +637,18 @@
           </div>
         </div>
 
+        <!-- Day-of: open the client-safe Presentation room (needs a demo URL). -->
+        <div class="room-entry">
+          {#if ws.demo_spec?.demo_url}
+            <a class="open-room-btn" href={`${base}/prospects/${ws.prospect.id}/present`}>
+              Open the Presentation room →
+            </a>
+          {:else}
+            <span class="open-room-btn disabled" aria-disabled="true">Open the Presentation room →</span>
+            <span class="room-hint">no demo URL set yet</span>
+          {/if}
+        </div>
+
         <div class="handoff-grid">
           <!-- LEFT — Alice interrogation (DORMANT, illustrative) -->
           <div class="interrogation">
@@ -918,6 +930,20 @@
     border: 1px solid var(--s44-border); border-radius: 6px; padding: 0.2rem 0.4rem;
   }
   .demo-actions { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.6rem; }
+
+  /* Presentation room entry (step 3). */
+  .room-entry { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.9rem; }
+  .open-room-btn {
+    display: inline-block; text-decoration: none;
+    background: var(--s44-crimson); color: #fff; font-weight: 700; font-size: 0.9rem;
+    border: none; border-radius: 8px; padding: 0.5rem 0.9rem;
+  }
+  .open-room-btn:hover { filter: brightness(1.1); }
+  .open-room-btn.disabled {
+    background: var(--s44-surface-2); color: var(--s44-muted);
+    border: 1px solid var(--s44-border); cursor: not-allowed; filter: none;
+  }
+  .room-hint { color: var(--s44-amber); font-size: 0.8rem; }
 
   /* Demo URL editor (Presentation room step 2). */
   .demo-url { margin-bottom: 0.9rem; }

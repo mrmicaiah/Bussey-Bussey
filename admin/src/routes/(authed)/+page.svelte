@@ -318,6 +318,7 @@
                   <button type="button" class="mark-built" onclick={() => openMarkBuilt(p.company, p.demo_spec_id)} title="Confirm the demo is built and uploaded">Mark built</button>
                 {/if}
                 <span class="pill pill-{p.price}" title={pillTitle('price', p.price)}>price</span>
+                <a class="open-room" href={`${base}/prospects/${p.opportunity_id}/present`} title="Open the Presentation room (screen-share surface)">Open the room →</a>
               </div>
             </li>
           {/each}
@@ -447,6 +448,11 @@
     padding: 1px 6px;
   }
   .mark-built:hover { filter: brightness(1.12); }
+  .open-room {
+    font-size: 0.72rem; font-weight: 600; white-space: nowrap;
+    color: var(--accent); text-decoration: none; margin-left: 0.25rem;
+  }
+  .open-room:hover { text-decoration: underline; }
 
   /* Mark-built dialog */
   .backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 50; }

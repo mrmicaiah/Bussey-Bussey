@@ -67,6 +67,8 @@ export type Opportunity = {
   owner_user_id: string | null;
   accepted_at: string | null;
   lost_reason: string | null;
+  lost_notes: string | null;
+  lost_at: string | null;
   notes: string | null;
   monthly_start_date: string | null;
   created_at: string;
