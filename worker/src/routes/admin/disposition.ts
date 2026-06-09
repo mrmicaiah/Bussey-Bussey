@@ -1,6 +1,6 @@
 import type { HandlerContext } from '../../types/route';
 import { json } from '../../lib/responses';
-import { writeAudit } from '../../lib/audit';
+import { writeAudit, auditStatement } from '../../lib/audit';
 
 /**
  * POST /api/admin/opportunities/:id/disposition
@@ -16,13 +16,12 @@ import { writeAudit } from '../../lib/audit';
  *   - declined  — opportunity → lost (with reason), current proposal → declined
  */
 
-const DECLINED_REASONS = new Set([
-  'too_expensive',
-  'bad_timing',
-  'went_with_competitor',
-  'not_a_fit',
-  'other',
-]);
+// Canonical closed enum for the No-deal path (Presentation room step 2). ORDER
+// MATTERS — it mirrors the disposition tab's pill order. Validation is API-side
+// only; there is deliberately no DB-level CHECK on opportunity.lost_reason
+// (migration 0020 leaves historical edge cases as 'other').
+const DECLINED_REASONS = ['price', 'timing', 'not_a_fit', 'went_with_competitor', 'silent', 'other'] as const;
+const LOST_NOTES_MAX = 2000;
 
 type OpportunityRow = {
   id: string;
@@ -122,52 +121,75 @@ export async function captureDisposition(ctx: HandlerContext): Promise<Response>
 
   if (kind === 'declined') {
     const reason = typeof body['reason'] === 'string' ? body['reason'].trim() : '';
-    if (!DECLINED_REASONS.has(reason)) return json({ error: 'invalid_reason' }, { status: 400 });
-    const newNotes = appendNote(opp.notes, notes ? `Declined (${reason}): ${notes}` : `Declined (${reason}).`);
+    if (!(DECLINED_REASONS as readonly string[]).includes(reason)) {
+      return json({ error: 'invalid_reason' }, { status: 400 });
+    }
+    // lost_notes — the No-deal sub-flow's composed free-form string. Distinct
+    // from the activity-log line below (which the server stamps, not the client).
+    const lostNotesRaw = typeof body['lost_notes'] === 'string' ? body['lost_notes'] : null;
+    if (lostNotesRaw !== null && lostNotesRaw.length > LOST_NOTES_MAX) {
+      return json({ error: 'lost_notes_too_long', limit: LOST_NOTES_MAX }, { status: 400 });
+    }
+    const lostNotes = lostNotesRaw && lostNotesRaw.trim() ? lostNotesRaw.trim() : null;
+    const lostAt = new Date().toISOString();
+    // Activity-log line is server-composed — the client never sends this string.
+    const newNotes = appendNote(opp.notes, `Declined (${reason}).`);
 
     const currentProposal = await pickCurrentProposal(ctx.env, oppId);
+    const declineProposal =
+      !!currentProposal && (currentProposal.status === 'draft' || currentProposal.status === 'sent');
+
+    // EVERYTHING atomic in ONE DB.batch: the opportunity update (status,
+    // lost_reason, lost_notes, lost_at, activity note), the optional proposal
+    // decline, and both audit rows. No split writes — a partial disposition
+    // (status moved but audit missing, or vice-versa) must be impossible.
     const stmts = [
       ctx.env.DB.prepare(
-        `UPDATE opportunity SET status = 'lost', lost_reason = ?, notes = ? WHERE id = ?`,
-      ).bind(reason, newNotes, oppId),
+        `UPDATE opportunity
+            SET status = 'lost', lost_reason = ?, lost_notes = ?, lost_at = ?, notes = ?
+          WHERE id = ?`,
+      ).bind(reason, lostNotes, lostAt, newNotes, oppId),
     ];
-    if (currentProposal && (currentProposal.status === 'draft' || currentProposal.status === 'sent')) {
+    if (declineProposal) {
       stmts.push(
-        ctx.env.DB.prepare(`UPDATE proposal SET status = 'declined' WHERE id = ?`).bind(currentProposal.id),
+        ctx.env.DB.prepare(`UPDATE proposal SET status = 'declined' WHERE id = ?`).bind(currentProposal!.id),
+      );
+    }
+    stmts.push(
+      auditStatement(ctx.env, {
+        actorType: 'admin_user',
+        actorId,
+        action: 'opportunity.disposition.declined',
+        entityType: 'opportunity',
+        entityId: oppId,
+        changes: {
+          reason,
+          lost_notes: lostNotes,
+          lost_at: lostAt,
+          status: { from: opp.status, to: 'lost' },
+          proposal_declined: declineProposal ? currentProposal!.id : null,
+        },
+        ipAddress: ip,
+        userAgent: ua,
+      }),
+    );
+    if (declineProposal) {
+      stmts.push(
+        auditStatement(ctx.env, {
+          actorType: 'admin_user',
+          actorId,
+          action: 'proposal.declined',
+          entityType: 'proposal',
+          entityId: currentProposal!.id,
+          changes: { status: { from: currentProposal!.status, to: 'declined' }, opportunity_id: oppId },
+          ipAddress: ip,
+          userAgent: ua,
+        }),
       );
     }
     await ctx.env.DB.batch(stmts);
 
-    await writeAudit(ctx.env, {
-      actorType: 'admin_user',
-      actorId,
-      action: 'opportunity.disposition.declined',
-      entityType: 'opportunity',
-      entityId: oppId,
-      changes: {
-        reason,
-        note_added: notes ?? null,
-        status: { from: opp.status, to: 'lost' },
-        proposal_declined: currentProposal?.id ?? null,
-      },
-      ipAddress: ip,
-      userAgent: ua,
-    });
-
-    if (currentProposal) {
-      await writeAudit(ctx.env, {
-        actorType: 'admin_user',
-        actorId,
-        action: 'proposal.declined',
-        entityType: 'proposal',
-        entityId: currentProposal.id,
-        changes: { status: { from: currentProposal.status, to: 'declined' }, opportunity_id: oppId },
-        ipAddress: ip,
-        userAgent: ua,
-      });
-    }
-
-    return json({ ok: true, kind: 'declined' });
+    return json({ ok: true, kind: 'declined', status: 'lost', lost_at: lostAt });
   }
 
   return json({ error: 'invalid_kind' }, { status: 400 });

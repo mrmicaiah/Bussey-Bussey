@@ -64,6 +64,13 @@
   let demoSaved = $state(false);
   let demoError = $state<string | null>(null);
 
+  // Demo URL editor (Presentation room step 2) — the URL iframed in the room.
+  // Saves via the extended demo-spec PUT on blur (when changed).
+  let demoUrl = $state('');
+  let demoUrlSaved = $state(''); // last persisted value — guards a redundant PUT on blur
+  let demoUrlSaving = $state(false);
+  let demoUrlError = $state<string | null>(null);
+
   // Demo-spec status control state (PUT /api/admin/demo-specs/:id/status).
   let statusPending = $state<DemoSpecStatus | null>(null); // forward move awaiting confirm
   let statusSaving = $state(false);
@@ -113,6 +120,10 @@
       demoDirty = false;
       demoSaved = false;
       demoError = null;
+      demoUrl = res.demo_spec?.demo_url ?? '';
+      demoUrlSaved = demoUrl;
+      demoUrlSaving = false;
+      demoUrlError = null;
       statusPending = null;
       statusError = null;
       statusToast = null;
@@ -257,6 +268,33 @@
       demoError = e instanceof ApiError ? `Couldn't save (${e.errorCode ?? e.status}).` : 'Network error.';
     } finally {
       demoSaving = false;
+    }
+  }
+
+  // Demo URL save (on blur). Only PUTs when the value actually changed and is
+  // non-empty; the worker validates the http(s) prefix (400 invalid_url).
+  async function saveDemoUrl() {
+    if (demoUrlSaving || !ws?.demo_spec) return;
+    const next = demoUrl.trim();
+    if (next === demoUrlSaved) return; // unchanged — nothing to persist
+    if (next === '') return; // empty — don't clear via this field
+    demoUrlSaving = true;
+    demoUrlError = null;
+    try {
+      const body: UpdateDemoSpecRequest = { demo_url: next };
+      const res = await api.put<UpdateDemoSpecResponse>(`/api/admin/demo-specs/${ws.demo_spec.id}`, body);
+      if (ws.demo_spec) ws.demo_spec.demo_url = res.demo_spec.demo_url;
+      demoUrl = res.demo_spec.demo_url ?? next;
+      demoUrlSaved = demoUrl;
+    } catch (e) {
+      demoUrlError =
+        e instanceof ApiError
+          ? e.errorCode === 'invalid_url'
+            ? 'Enter a full URL starting with http:// or https://'
+            : `Couldn't save (${e.errorCode ?? e.status}).`
+          : 'Network error.';
+    } finally {
+      demoUrlSaving = false;
     }
   }
 
@@ -666,6 +704,24 @@
                   </div>
                 </div>
               {/if}
+              <div class="demo-url">
+                <div class="demo-url-head">
+                  <span class="demo-url-label">Demo URL</span>
+                  {#if demoUrl.trim()}
+                    <a class="demo-url-open" href={demoUrl} target="_blank" rel="noopener noreferrer">Open ↗</a>
+                  {/if}
+                </div>
+                <input
+                  type="url"
+                  class="demo-url-input"
+                  placeholder="paste the URL the builder returned"
+                  bind:value={demoUrl}
+                  onblur={saveDemoUrl}
+                  disabled={demoUrlSaving}
+                  aria-label="Demo URL"
+                />
+                {#if demoUrlError}<div class="err">{demoUrlError}</div>{/if}
+              </div>
               <NotesField
                 label="The brief"
                 hint="What to build / emphasize / ignore / the value to land. Prose — Alice authors this at L4."
@@ -862,6 +918,20 @@
     border: 1px solid var(--s44-border); border-radius: 6px; padding: 0.2rem 0.4rem;
   }
   .demo-actions { display: flex; align-items: center; gap: 0.75rem; margin-top: 0.6rem; }
+
+  /* Demo URL editor (Presentation room step 2). */
+  .demo-url { margin-bottom: 0.9rem; }
+  .demo-url-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 0.3rem; }
+  .demo-url-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--s44-muted); }
+  .demo-url-open { font-size: 0.78rem; color: var(--s44-crimson); text-decoration: none; }
+  .demo-url-open:hover { text-decoration: underline; }
+  .demo-url-input {
+    width: 100%; font: inherit; font-size: 0.9rem;
+    background: var(--s44-surface); color: var(--s44-text);
+    border: 1px solid var(--s44-border); border-radius: 8px; padding: 0.5rem 0.6rem;
+  }
+  .demo-url-input:focus { outline: none; border-color: var(--s44-crimson); }
+  .demo-url-input:disabled { opacity: 0.6; }
 
   /* Demo-spec status control (step 5) — confirm strip mirrors .flip-confirm. */
   .status-control { display: flex; align-items: center; gap: 0.5rem; }

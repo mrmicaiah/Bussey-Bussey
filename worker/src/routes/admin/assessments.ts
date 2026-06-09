@@ -429,7 +429,9 @@ export async function completePitchHandler(ctx: HandlerContext): Promise<Respons
 // Updates body + updated_at when present. One DB.batch: [UPDATE, audit].
 
 const DEMO_SPEC_FULL_ROW =
-  `SELECT id, opportunity_id, assessment_id, body, status, author_kind, created_by_user_id, created_at, updated_at, handed_off_at, built_at FROM demo_spec WHERE id = ?`;
+  `SELECT id, opportunity_id, assessment_id, body, status, author_kind, created_by_user_id, created_at, updated_at, handed_off_at, built_at, demo_url FROM demo_spec WHERE id = ?`;
+
+const DEMO_URL_MAX = 2000;
 
 export async function updateDemoSpecHandler(ctx: HandlerContext): Promise<Response> {
   if (!ctx.session) return json({ error: 'unauthenticated' }, { status: 401 });
@@ -454,25 +456,56 @@ export async function updateDemoSpecHandler(ctx: HandlerContext): Promise<Respon
     .first<{ id: string }>();
   if (!cur) return json({ error: 'not_found' }, { status: 404 });
 
+  // Extended payload (Presentation room step 2): { body?, demo_url? }. Update
+  // only the fields present; at least one must be provided.
+  const setParts: string[] = [];
+  const binds: unknown[] = [];
+  const fields: string[] = [];
+
   if (Object.prototype.hasOwnProperty.call(body, 'body')) {
-    await ctx.env.DB.batch([
-      ctx.env.DB.prepare(`UPDATE demo_spec SET body = ?, updated_at = ? WHERE id = ?`).bind(
-        stringOrNull(body['body']),
-        new Date().toISOString(),
-        id,
-      ),
-      auditStatement(ctx.env, {
-        actorType: 'admin_user',
-        actorId: ctx.session.subjectId,
-        action: 'demo_spec.update',
-        entityType: 'demo_spec',
-        entityId: id,
-        changes: { fields: ['body'] },
-        ipAddress: ctx.session.ipAddress,
-        userAgent: ctx.session.userAgent,
-      }),
-    ]);
+    setParts.push('body = ?');
+    binds.push(stringOrNull(body['body']));
+    fields.push('body');
   }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'demo_url')) {
+    const url = body['demo_url'];
+    if (
+      typeof url !== 'string' ||
+      !(url.startsWith('http://') || url.startsWith('https://')) ||
+      url.length > DEMO_URL_MAX
+    ) {
+      return json({ error: 'invalid_url' }, { status: 400 });
+    }
+    setParts.push('demo_url = ?');
+    binds.push(url);
+    fields.push('demo_url');
+  }
+
+  if (setParts.length === 0) {
+    return json(
+      { error: 'no_fields', message: 'provide at least one of body, demo_url' },
+      { status: 400 },
+    );
+  }
+
+  setParts.push('updated_at = ?');
+  binds.push(new Date().toISOString());
+  binds.push(id);
+
+  await ctx.env.DB.batch([
+    ctx.env.DB.prepare(`UPDATE demo_spec SET ${setParts.join(', ')} WHERE id = ?`).bind(...binds),
+    auditStatement(ctx.env, {
+      actorType: 'admin_user',
+      actorId: ctx.session.subjectId,
+      action: 'demo_spec.update',
+      entityType: 'demo_spec',
+      entityId: id,
+      changes: { fields },
+      ipAddress: ctx.session.ipAddress,
+      userAgent: ctx.session.userAgent,
+    }),
+  ]);
 
   const row = await ctx.env.DB.prepare(DEMO_SPEC_FULL_ROW).bind(id).first();
   return json({ ok: true, demo_spec: row });

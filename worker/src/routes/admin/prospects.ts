@@ -175,10 +175,10 @@ export async function getProspectWorkspaceHandler(ctx: HandlerContext): Promise<
 
   // Handoff containers — usually absent until step 6. Return null cleanly.
   const demoRow = await ctx.env.DB.prepare(
-    `SELECT id, status, body, author_kind FROM demo_spec WHERE opportunity_id = ? ORDER BY created_at DESC LIMIT 1`,
+    `SELECT id, status, body, author_kind, demo_url FROM demo_spec WHERE opportunity_id = ? ORDER BY created_at DESC LIMIT 1`,
   )
     .bind(oppId)
-    .first<{ id: string; status: string; body: string | null; author_kind: string }>();
+    .first<{ id: string; status: string; body: string | null; author_kind: string; demo_url: string | null }>();
   const demo_spec = demoRow ?? null;
 
   const proposalRow = await ctx.env.DB.prepare(

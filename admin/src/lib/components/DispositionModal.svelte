@@ -15,16 +15,20 @@
   };
   let { open, kind, opportunity, proposal, submitting, onsubmit, onclose }: Props = $props();
 
+  // Canonical 6-value lost-reason enum (Presentation room step 2). Order matches
+  // the disposition tab's pill order.
+  type DeclinedReason = 'price' | 'timing' | 'not_a_fit' | 'went_with_competitor' | 'silent' | 'other';
+
   let notes = $state('');
   let nextFollowupDate = $state('');
-  let declinedReason = $state<'too_expensive' | 'bad_timing' | 'went_with_competitor' | 'not_a_fit' | 'other'>('too_expensive');
+  let declinedReason = $state<DeclinedReason>('price');
 
   $effect(() => {
     // reset when opening
     if (open) {
       notes = '';
       nextFollowupDate = '';
-      declinedReason = 'too_expensive';
+      declinedReason = 'price';
     }
   });
 
@@ -43,7 +47,7 @@
     } else if (kind === 'changes') {
       await onsubmit('changes', { notes });
     } else if (kind === 'declined') {
-      await onsubmit('declined', { reason: declinedReason, notes });
+      await onsubmit('declined', { reason: declinedReason, lost_notes: notes });
     } else if (kind === 'accepted') {
       await onsubmit('accepted', {});
     }
@@ -97,10 +101,11 @@
       </p>
       <Field label="Reason *">
         <select bind:value={declinedReason}>
-          <option value="too_expensive">Too expensive</option>
-          <option value="bad_timing">Bad timing</option>
-          <option value="went_with_competitor">Went with a competitor</option>
+          <option value="price">Price / budget</option>
+          <option value="timing">Timing — not now</option>
           <option value="not_a_fit">Not a fit</option>
+          <option value="went_with_competitor">Went with a competitor</option>
+          <option value="silent">Went silent</option>
           <option value="other">Other</option>
         </select>
       </Field>

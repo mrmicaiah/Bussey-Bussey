@@ -284,6 +284,8 @@ export type DemoSpec = {
   // Studio44 Dashboard (migration 0017) — lifecycle timestamps
   handed_off_at: string | null;
   built_at: string | null;
+  // Studio44 Presentation room (migration 0019) — the URL iframed in the room
+  demo_url: string | null;
 };
 
 // cold_calling_target — Studio44 Dashboard (migration 0018). The operator's per-week
@@ -364,7 +366,13 @@ export type ProspectWorkspace = {
   thread: AssessmentThreadItem[];
   current_assessment: CurrentAssessment | null;
   next_appointment: { id: string; scheduled_at: string } | null;
-  demo_spec: { id: string; status: DemoSpecStatus; body: string | null; author_kind: DemoSpecAuthorKind } | null;
+  demo_spec: {
+    id: string;
+    status: DemoSpecStatus;
+    body: string | null;
+    author_kind: DemoSpecAuthorKind;
+    demo_url: string | null;
+  } | null;
   proposal: {
     id: string;
     status: ProposalStatus;
@@ -392,10 +400,12 @@ export type CompletePitchResponse = {
   demo_spec_id: string;
 };
 
-// Body-only since Dashboard step 5 — status transitions have one canonical path,
+// Extended in the Presentation room (step 2): { body?, demo_url? }. At least one
+// must be provided. Status transitions still have one canonical path,
 // PUT /api/admin/demo-specs/:id/status (sending status here is rejected 400).
 export type UpdateDemoSpecRequest = {
   body?: string | null;
+  demo_url?: string;
 };
 
 export type UpdateDemoSpecResponse = {
