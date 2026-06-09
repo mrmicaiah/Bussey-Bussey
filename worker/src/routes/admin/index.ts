@@ -69,6 +69,7 @@ import {
   callingListDisqualifyHandler,
   callingListBulkRescheduleHandler,
 } from './calling-list';
+import { callsQueueHandler, callsFunnelVitalHandler } from './calls';
 
 /**
  * Admin routes — admin_user session required.
@@ -600,6 +601,22 @@ export const adminRoutes: Route[] = [
     pattern: new URLPattern({ pathname: '/api/admin/calling-list/:id/disqualify' }),
     description: 'Soft-delete a card by setting status to disqualified.',
     handler: callingListDisqualifyHandler,
+  },
+
+  // Calls layer (Studio44 — card-based calling queue + funnel vital). READ-ONLY.
+  // Static routes; placed ahead of any future '/api/admin/calls/:id' pattern so
+  // 'queue'/'funnel-vital' are never captured as an :id (first-match-wins router).
+  {
+    method: 'GET',
+    pattern: new URLPattern({ pathname: '/api/admin/calls/queue' }),
+    description: 'Eligible call cards for a mode (cold|callbacks|mixed) + prior_attempts. READ-ONLY.',
+    handler: callsQueueHandler,
+  },
+  {
+    method: 'GET',
+    pattern: new URLPattern({ pathname: '/api/admin/calls/funnel-vital' }),
+    description: 'Dashboard Calls vital: pending/in_progress counts + pre-formatted subline. READ-ONLY.',
+    handler: callsFunnelVitalHandler,
   },
 
   // Notifications log

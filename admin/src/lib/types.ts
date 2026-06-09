@@ -701,3 +701,56 @@ export type DashboardResponse = {
     };
   };
 };
+
+// ── Studio44 Calls layer — step 2 read endpoints (§5.1, §6.1) ────────────
+// Mirrors GET /api/admin/calls/queue and /api/admin/calls/funnel-vital.
+export type CallCardStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'done'
+  | 'dead'
+  | 'disqualified'
+  | 'promoted';
+
+export type CallQueueMode = 'cold' | 'callbacks' | 'mixed';
+
+// One of the last-5 card_activity rows surfaced with a queue card.
+export type CallPriorAttempt = {
+  id: string;
+  outcome: string | null;
+  notes: string | null;
+  attempt_number: number;
+  created_at: string;
+};
+
+export type CallQueueCard = {
+  id: string;
+  company_name: string;
+  contact_name: string | null;
+  contact_email: string | null;
+  contact_phone: string | null;
+  industry: string | null;
+  source: string | null;
+  imported_at: string;
+  notes: string | null;
+  call_date: string;
+  card_status: CallCardStatus;
+  attempt_count: number;
+  next_action_date: string | null;
+  last_outcome: string | null;
+  prior_attempts: CallPriorAttempt[]; // last 5, newest first
+};
+
+export type CallQueueResponse = {
+  mode: CallQueueMode;
+  industry_filter: string | null;
+  count: number;
+  cards: CallQueueCard[];
+};
+
+export type CallFunnelVitalResponse = {
+  count: number; // cards with card_status in ('pending','in_progress')
+  never_called_count: number; // ...and attempt_count = 0
+  callbacks_due_today_count: number; // ...and a callback due today
+  subline: string; // pre-formatted server-side
+};
