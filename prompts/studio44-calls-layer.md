@@ -3,6 +3,7 @@
 **Status:** Draft, awaiting operator sign-off on §1, §3, §4.
 **Author:** Manager chat.
 **Created:** 2026-06-09.
+**Revised:** 2026-06-09 — §3 schema reworked. Original spec proposed extending `lead_activity` with a dual-key column, but `lead_activity.lead_id` is `NOT NULL` from migration 0011, so the dual-key invariant ("exactly one of lead_id, calling_list_item_id non-null per row") was unsatisfiable without a full table rebuild. Revised approach uses a separate `card_activity` table with the same shape, and the unified-history view UNIONs across both tables. See §3 for details.
 **Supersedes:** the implicit dual-system of `calling_list_item` (worked at `/calling-list/today`) and `lead`-wizard (worked at `/leads/work`) that ships today. After this layer lands, cold calling has ONE front door and one canonical wizard.
 
 ---
@@ -77,10 +78,10 @@ When the operator picks "Promote to lead" at the close of a call:
   data + the promoting call's note (see §5 for exact preamble format).
 - The card row's `card_status` is updated to `'promoted'`, `promoted_lead_id` is set to
   the new lead's ID.
-- All historical `lead_activity` rows that referenced `calling_list_item_id` for this card
-  remain attached to the card AND become reachable from the new lead (because the activity
-  table is dual-keyed — see §3). Alice and any analytics query reads the full call history
-  via either the card or the lead.
+- All historical `card_activity` rows for this card remain attached to the card. They are
+  joinable to the new lead via the card's `promoted_lead_id` FK through the unified-history
+  view (see §3). Alice and any analytics query reads the full call history via either
+  endpoint.
 
 The card row is NOT deleted. It stays as a permanent audit record of "this lead came from
 a cold call, and here was the call sequence that produced it."
@@ -102,10 +103,10 @@ station; **"Leads"** stays for warm leads. Five funnel-vitals on the dashboard:
 
 ### Alice integration (hooks designed here, not wired until L4)
 
-Every Calls-layer surface is designed with Alice's eventual ownership in mind. The over-tracking
-discipline from Layer 1 carries forward — *every* call adds attribution-quality data to
-the card's activity history, and every state transition writes a timestamp the analytics
-substrate can read. Specifically Alice will, at L4, learn from:
+Every Calls-layer surface is designed with Alice's eventual ownership in mind. The
+over-tracking discipline from Layer 1 carries forward — *every* call adds attribution-quality
+data to the card's activity history, and every state transition writes a timestamp the
+analytics substrate can read. Specifically Alice will, at L4, learn from:
 
 - Which industries / sub-categories book best (industry on card → outcome).
 - Which time-of-day windows connect with decision-makers.
@@ -115,7 +116,7 @@ substrate can read. Specifically Alice will, at L4, learn from:
   workflows produce the best leads).
 - Cadence patterns (attempt N → outcome distribution).
 
-All of this is queryable from `calling_list_item` + `lead_activity` + the joined-through
+All of this is queryable from `calling_list_item` + `card_activity` + the joined-through
 booking/promotion FKs. The Calls layer's job is to make that data exist; Layer 4's job is
 to make Alice read it.
 
@@ -147,6 +148,18 @@ To keep scope honest, the following are NOT part of the Calls layer:
 This section is operator-reviewable. Everything below is what touches the database. Sign
 off here before §4/§5 implementation begins.
 
+**Note on the table-separation decision (vs. dual-keying lead_activity):**
+An earlier draft of this spec proposed adding `calling_list_item_id` to `lead_activity` with
+a dual-key invariant ("exactly one of lead_id, calling_list_item_id non-null"). That fails
+because `lead_activity.lead_id` is `NOT NULL` (migration 0011). Relaxing it would require a
+full SQLite table rebuild, touching a table the Layer 1 wizard already reads — large blast
+radius for a constraint we'd then enforce only at the API layer. The revised approach uses
+a separate `card_activity` table with the same shape. A `card_activity` row stays on the
+card forever; a copy is *also* written to `lead_activity` at promote-time (so the
+Layer 1 wizard's prior-attempts join keeps working without modification). This is mildly
+denormalized but the duplication is bounded (one copy per promoting call) and the
+operational simplicity is large.
+
 ### 3.1 Migration 0021 — calling_list_item card-status fields
 
 Add the workflow columns:
@@ -162,73 +175,122 @@ ALTER TABLE calling_list_item ADD COLUMN card_status TEXT NOT NULL DEFAULT 'pend
 -- 'promoted'     — became a lead without booking yet (promoted_lead_id set, no client)
 
 ALTER TABLE calling_list_item ADD COLUMN attempt_count INTEGER NOT NULL DEFAULT 0;
--- count of distinct call activities logged against this card. Computed and stamped on every
--- call log; redundant with COUNT(lead_activity) but cached for cheap reads.
+-- count of distinct call activities logged against this card.
 
 ALTER TABLE calling_list_item ADD COLUMN next_action_date TEXT;
 -- nullable ISO date 'YYYY-MM-DD'. When NULL: callable now (true cold).
 -- When set: do not surface in the Calls queue until current_date >= next_action_date.
 
 ALTER TABLE calling_list_item ADD COLUMN promoted_lead_id TEXT REFERENCES lead(id) ON DELETE SET NULL;
--- when the card is promoted to a lead (without booking), this points at the new lead.
+-- when the card is promoted to a lead, this points at the new lead.
 -- when the card is also booked (the new lead → client transaction), this STILL points at
 -- the intermediate lead. converted_lead_id (existing column from migration 0008) points
 -- at the same lead in the booking case.
 
 ALTER TABLE calling_list_item ADD COLUMN last_outcome TEXT;
--- last activity_outcome string cached for cheap reads (the latest lead_activity's outcome).
--- enum mirrors lead_activity.outcome: 'spoke' | 'voicemail' | 'no_answer' | 'gatekeeper' |
--- 'wrong_number' | 'not_interested' | 'callback_requested' | 'qualified' | 'booked' | 'promoted' | 'disqualified'.
+-- last activity_outcome string cached for cheap reads.
+
+-- Indexes (added at the worker's recommendation from step 1 review):
+CREATE INDEX IF NOT EXISTS idx_calling_list_item_card_status ON calling_list_item(card_status);
+CREATE INDEX IF NOT EXISTS idx_calling_list_item_next_action_date ON calling_list_item(next_action_date);
+CREATE INDEX IF NOT EXISTS idx_calling_list_item_promoted_lead_id ON calling_list_item(promoted_lead_id);
 ```
 
-Backfill: existing 10 cards in staging all get `card_status='pending'`, `attempt_count=0`,
-`next_action_date=NULL`, `promoted_lead_id=NULL`, `last_outcome=NULL`. Already imported,
-no special handling — the DEFAULTs cover them.
+### 3.2 Migration 0022 — card_activity table (REVISED — was lead_activity dual-key)
 
-### 3.2 Migration 0022 — lead_activity dual-key
-
-The Layer 1 `lead_activity` table is keyed only to `lead_id`. To track call activity against
-cards (which aren't leads yet), we extend it:
+Create a parallel `card_activity` table mirroring `lead_activity`'s shape, but keyed to
+`calling_list_item` instead of `lead`:
 
 ```sql
-ALTER TABLE lead_activity ADD COLUMN calling_list_item_id TEXT REFERENCES calling_list_item(id) ON DELETE CASCADE;
--- nullable. Exactly one of (lead_id, calling_list_item_id) must be non-null per row.
--- enforced API-side; no CHECK constraint, because retroactive backfill (§3.4) needs
--- flexibility.
+CREATE TABLE card_activity (
+  id TEXT PRIMARY KEY,
+  calling_list_item_id TEXT NOT NULL REFERENCES calling_list_item(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL DEFAULT 'call',
+  outcome TEXT,                      -- voicemail | no_answer | gatekeeper | spoke_qualified | spoke_not_interested | ...
+  attempt_number INTEGER NOT NULL,
+  industry_at_time TEXT,
+  opener_variant_id TEXT REFERENCES script_variant(id),
+  hook_variant_id TEXT REFERENCES script_variant(id),
+  discovery_variant_id TEXT REFERENCES script_variant(id),
+  close_variant_id TEXT REFERENCES script_variant(id),
+  card_dwell_ms INTEGER,
+  phone_duration_s INTEGER,
+  session_id TEXT,
+  notes TEXT,
+  created_by_user_id TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_card_activity_card_id ON card_activity(calling_list_item_id);
+CREATE INDEX IF NOT EXISTS idx_card_activity_created_at ON card_activity(created_at);
 ```
 
-This is the "dual-keyed activity table" pattern. A call against a card writes a row with
-`calling_list_item_id` set and `lead_id` NULL. When that card promotes to a lead, the row
-*stays as-is* (still points at the card), and any future calls against the new lead row
-write rows with `lead_id` set and `calling_list_item_id` NULL. Joined queries read both
-via UNION or a denormalized view.
+Schema parallel to `lead_activity` (migration 0011) — same column names, same FK shapes,
+same indices. The only difference is the FK target. This keeps Alice's query writing
+uniform: same predicates, same joins, just two tables to UNION.
 
 ### 3.3 Migration 0023 — view for unified activity reads
 
-Create `v_card_full_history` — a SQL view that, given a card ID, returns:
-- All `lead_activity` rows where `calling_list_item_id = ?`
-- PLUS, if the card is promoted/converted, all `lead_activity` rows where
-  `lead_id = card.promoted_lead_id` OR `lead_id = card.converted_lead_id`
+Create `v_card_full_history` — returns all activity rows related to a card, whether
+they live in `card_activity` (the card's own pre-promotion activity) or in `lead_activity`
+(the lead's post-promotion activity, after promote-to-lead or book-from-card).
 
-So fetching "everything that's ever been logged about this card" is one query. Alice reads
-this view at L4.
+```sql
+CREATE VIEW IF NOT EXISTS v_card_full_history AS
+-- Branch 1: card's own pre-promotion activity
+SELECT
+  ca.id AS activity_id,
+  cli.id AS source_card_id,
+  cli.promoted_lead_id,
+  cli.converted_lead_id,
+  ca.kind, ca.outcome, ca.attempt_number, ca.industry_at_time,
+  ca.opener_variant_id, ca.hook_variant_id, ca.discovery_variant_id, ca.close_variant_id,
+  ca.card_dwell_ms, ca.phone_duration_s, ca.session_id, ca.notes,
+  ca.created_by_user_id, ca.created_at,
+  'card' AS source_table
+FROM card_activity ca
+JOIN calling_list_item cli ON ca.calling_list_item_id = cli.id
+UNION ALL
+-- Branch 2: post-promotion lead activity (via the card's promotion FK)
+SELECT
+  la.id AS activity_id,
+  cli.id AS source_card_id,
+  cli.promoted_lead_id,
+  cli.converted_lead_id,
+  la.kind, la.outcome, la.attempt_number, la.industry_at_time,
+  la.opener_variant_id, la.hook_variant_id, la.discovery_variant_id, la.close_variant_id,
+  la.card_dwell_ms, la.phone_duration_s, la.session_id, la.notes,
+  la.created_by_user_id, la.created_at,
+  'lead' AS source_table
+FROM lead_activity la
+JOIN calling_list_item cli ON la.lead_id = cli.promoted_lead_id OR la.lead_id = cli.converted_lead_id;
+```
 
-Honest note: views in D1 / SQLite are real but have performance characteristics worth
-watching. If the view turns out to be slow on large datasets later, we materialize to a
-read-side cache. For staging-scale data (the current 10 cards), it's a non-issue.
+This view is the canonical "everything ever logged about this card" query. The
+`source_table` discriminator column lets readers distinguish pre-promotion (cold) activity
+from post-promotion (warm-lead) activity. Alice reads this at L4.
+
+If view performance becomes an issue at scale (it won't for staging's 10 cards), we
+materialize to a read-side cache. Punt.
 
 ### 3.4 Migration 0024 — backfill historical conversion data
 
 The existing `lead.source='calling_list'` convention (set when a card converts to a lead
 via the old `/calling-list/today` log-call path) gives us a way to identify
 already-converted cards. For any existing card that has a `converted_lead_id` set
-(historical column from migration 0008), set `card_status='promoted'` and `promoted_lead_id
-= converted_lead_id`.
+(historical column from migration 0008), set `card_status='promoted'` and
+`promoted_lead_id = converted_lead_id`.
+
+```sql
+UPDATE calling_list_item
+SET card_status = 'promoted',
+    promoted_lead_id = converted_lead_id
+WHERE converted_lead_id IS NOT NULL
+  AND card_status != 'promoted';  -- idempotent: skip already-promoted
+```
 
 Cards with no conversion stay `pending`. Cards with conversion get the audit history they
 should have had.
-
-No data loss risk — this only writes columns that just got added.
 
 ### 3.5 Schema summary table
 
@@ -239,19 +301,22 @@ No data loss risk — this only writes columns that just got added.
 | `next_action_date` | `calling_list_item` | TEXT 'YYYY-MM-DD' | YES | when to resurface |
 | `promoted_lead_id` | `calling_list_item` | TEXT FK→lead.id | YES | audit link to lead |
 | `last_outcome` | `calling_list_item` | TEXT enum | YES | cached last outcome |
-| `calling_list_item_id` | `lead_activity` | TEXT FK→calling_list_item.id | YES | dual-key |
-| (view) `v_card_full_history` | (view) | — | — | unified activity reads |
+| `card_activity` | (new table) | — | — | per-card activity log; mirrors lead_activity shape |
+| `v_card_full_history` | (view) | — | — | unified activity reads (card + lead branches) |
 
 ### 3.6 What's NOT changing in the schema
 
 - The `lead` table itself. Layer 1's columns stay. Lead-side workflow is unchanged.
-- The `lead_activity.outcome` enum. Cards use the same outcome vocabulary as leads.
+- The `lead_activity` table. Stays exactly as Layer 1 designed it. No new columns, no
+  changes to NOT NULL constraints.
 - `assessment`, `opportunity`, `demo_spec`, `client` — none touched. Booking transaction
   shape unchanged.
 - The CSV import endpoint at `/admin/calling-list/import`. Unchanged.
 - The promotion-to-lead handler at `worker/src/routes/admin/calling-list.ts`
   (`callingListLogHandler`). Its core INSERT stays; we extend it to ALSO update the card's
-  `card_status='promoted'` and `promoted_lead_id` per §1.
+  `card_status='promoted'` and `promoted_lead_id` per §1, and to *also* INSERT a copy of
+  the promoting call's activity into `lead_activity` (so Layer 1's prior-attempts join
+  keeps working).
 
 ---
 
@@ -438,8 +503,8 @@ A card is "eligible" if:
   - `callbacks`: `attempt_count > 0` AND `next_action_date <= date('now')`
   - `mixed`: union of both
 
-Returns full card payload plus a `prior_attempts` array with last 5 `lead_activity` rows
-joined via dual-key (rows where `calling_list_item_id = card.id`).
+Returns full card payload plus a `prior_attempts` array — last 5 `card_activity` rows
+where `calling_list_item_id = card.id`, ordered by `created_at` DESC.
 
 ### 5.2 Call log endpoint — `POST /api/admin/calls/:id/log`
 
@@ -456,7 +521,7 @@ Request shape:
 
 Server-side transaction (one atomic `DB.batch`):
 
-1. INSERT `lead_activity` with `calling_list_item_id` set, `lead_id` NULL, outcome, notes,
+1. INSERT `card_activity` row — calling_list_item_id set, outcome, notes, attempt_number,
    timestamp, script_variant_id.
 2. UPDATE `calling_list_item` SET `attempt_count = attempt_count + 1`, `last_outcome = outcome`,
    `next_action_date = ?`.
@@ -465,10 +530,13 @@ Server-side transaction (one atomic `DB.batch`):
    - `disqualify`: SET `card_status='disqualified'`.
    - `retry`: keep `card_status` as 'pending' (or 'in_progress' if mid-session).
    - `promote`: INSERT new `lead` (see preamble below), SET `card_status='promoted'`,
-     `promoted_lead_id = new_lead.id`.
+     `promoted_lead_id = new_lead.id`. ALSO INSERT a mirror row into `lead_activity` for
+     the promoting call (lead_id = new_lead.id, same outcome/notes) so Layer 1's
+     prior-attempts join works.
    - `book`: INSERT new `lead`, then run the full Layer 1 booking transaction (creates
      client + opportunity + assessment), SET `card_status='promoted'` AND
-     `converted_lead_id = new_lead.id`, `promoted_lead_id = new_lead.id`.
+     `converted_lead_id = new_lead.id`, `promoted_lead_id = new_lead.id`. Same lead_activity
+     mirror as promote.
 4. If `card_status` became `'dead'` via the attempt cap auto-park, set
    `last_outcome='parked_at_cap'` explicitly.
 5. Audit row (existing `audit_log` pattern).
@@ -542,8 +610,7 @@ Counts:
 The "Cold calling & outreach" station gets a clarity refresh:
 - Heading: "Calls" (was "Cold calling & outreach").
 - Push-target +/- control: unchanged.
-- Today's progress line: "Made X calls today" — counts `lead_activity` rows with
-  `calling_list_item_id` set, created today.
+- Today's progress line: "Made X calls today" — counts `card_activity` rows created today.
 - Primary button: **"Work Calls →"** (points to `/calls/work`).
 - Secondary button: **"Work Leads →"** (points to `/leads/work`).
 
@@ -564,9 +631,9 @@ table (imported from the Austin law pilot).
 
 After running 0021–0024:
 - All 10 cards get `card_status='pending'`, `attempt_count=0`, `next_action_date=NULL`.
-- Zero existing leads have a `calling_list_item_id` on activity (no historical activity
-  data to migrate).
+- The new `card_activity` table is empty (no calls logged yet).
 - Zero risk to existing prospect/opportunity/assessment/demo_spec data — not touched.
+- `lead_activity` is untouched — Layer 1 wizard's behavior is unchanged.
 
 Smoke check after deploy: SELECT COUNT(*) FROM calling_list_item WHERE card_status='pending'.
 Should be 10.
