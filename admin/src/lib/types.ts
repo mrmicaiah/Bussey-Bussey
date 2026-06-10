@@ -754,3 +754,23 @@ export type CallFunnelVitalResponse = {
   callbacks_due_today_count: number; // ...and a callback due today
   subline: string; // pre-formatted server-side
 };
+
+export type CallLogNextMove = 'pass' | 'retry' | 'promote' | 'book';
+
+export type CallLogRequest = {
+  outcome: string;
+  next_move: CallLogNextMove;
+  next_action_date: string | null;
+  notes: string | null;
+  script_variant_id: string | null;
+  card_dwell_ms: number;
+  scheduled_at?: string | null; // ISO 8601; sent only on next_move='book'
+};
+
+export type CallLogResponse = {
+  ok: true;
+  card_status: CallCardStatus;
+  lead_id: string | null;
+  opportunity_id: string | null;
+  assessment_id: string | null; // set on the book path
+};

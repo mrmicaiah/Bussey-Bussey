@@ -1,5 +1,6 @@
 import type { HandlerContext } from '../../types/route';
 import { json } from '../../lib/responses';
+import { buildCardLogTransaction, type CardLogCardRow, type CardLogNextMove } from '../../lib/calls-tx';
 
 /**
  * Studio44 Calls layer — read-side endpoints (spec §5.1, §6.1).
@@ -189,4 +190,161 @@ export async function callsFunnelVitalHandler(ctx: HandlerContext): Promise<Resp
     callbacks_due_today_count: callbacksDue,
     subline: `${neverCalled} never called · ${callbacksDue} callbacks due today`,
   });
+}
+
+// ─── 3. Call log (spec §5.2) ─────────────────────────────────────────────────
+//
+// POST /api/admin/calls/:id/log — record a call outcome and apply the operator's
+// next-move (pass | retry | promote | book) in ONE atomic DB.batch. The whole
+// transaction shape lives in lib/calls-tx.ts (buildCardLogTransaction); this
+// handler does request validation + the workability read, then runs + reports.
+//
+// Notes deviation flagged in the step-4 report: the legacy `status` column is left
+// untouched — the calls layer is governed by card_status, and the spec's UPDATE
+// list (attempt_count, last_outcome, next_action_date, card_status) doesn't include
+// it. Old surfaces reading `status` are retired in step 6.
+
+// 9 outcomes (spec §4.4 — includes the 9th, 'spoke_interested').
+const LOG_OUTCOMES = new Set([
+  'voicemail',
+  'no_answer',
+  'gatekeeper',
+  'spoke_qualified',
+  'spoke_interested',
+  'spoke_callback_later',
+  'spoke_not_interested',
+  'wrong_number',
+  'disconnected',
+]);
+const LOG_NEXT_MOVES = new Set<CardLogNextMove>(['pass', 'retry', 'promote', 'book']);
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const NOTES_MAX = 2000;
+
+// A card is loggable only while pending or in_progress (mirrors the queue's
+// BASE_ELIGIBLE — done/dead/disqualified/promoted cards are terminal).
+const WORKABLE = new Set(['pending', 'in_progress']);
+
+export async function callsLogHandler(ctx: HandlerContext): Promise<Response> {
+  if (!ctx.session) return json({ error: 'unauthenticated' }, { status: 401 });
+
+  const id = ctx.params['id'];
+  if (!id) return json({ error: 'invalid_id' }, { status: 400 });
+
+  const body = await readJsonObject(ctx.request);
+  if (!body) return json({ error: 'invalid_request' }, { status: 400 });
+
+  const outcome = typeof body['outcome'] === 'string' ? body['outcome'] : '';
+  if (!LOG_OUTCOMES.has(outcome)) return json({ error: 'invalid_outcome' }, { status: 400 });
+
+  const nextMove = (typeof body['next_move'] === 'string' ? body['next_move'] : '') as CardLogNextMove;
+  if (!LOG_NEXT_MOVES.has(nextMove)) return json({ error: 'invalid_next_move' }, { status: 400 });
+
+  // next_action_date: required for retry, must be absent/null otherwise.
+  const nextActionRaw =
+    typeof body['next_action_date'] === 'string' ? body['next_action_date'].trim() : null;
+  if (nextMove === 'retry') {
+    if (!nextActionRaw) return json({ error: 'next_action_date_required' }, { status: 400 });
+    if (!ISO_DATE.test(nextActionRaw)) {
+      return json({ error: 'invalid_next_action_date' }, { status: 400 });
+    }
+  } else if (nextActionRaw) {
+    return json({ error: 'next_action_date_not_allowed' }, { status: 400 });
+  }
+
+  // scheduled_at: required on book, must be a valid ISO datetime in the future.
+  // Ignored (forced null) for every other next_move.
+  let scheduledAt: string | null = null;
+  if (nextMove === 'book') {
+    const raw = typeof body['scheduled_at'] === 'string' ? body['scheduled_at'].trim() : '';
+    if (!raw) return json({ error: 'scheduled_at_required' }, { status: 400 });
+    const when = new Date(raw);
+    if (Number.isNaN(when.getTime())) {
+      return json({ error: 'invalid_scheduled_at' }, { status: 400 });
+    }
+    if (when.getTime() <= Date.now()) {
+      return json({ error: 'scheduled_at_must_be_future' }, { status: 400 });
+    }
+    scheduledAt = when.toISOString();
+  }
+
+  // notes: required when a human conversation happened (spoke_* outcomes).
+  const notes = typeof body['notes'] === 'string' ? body['notes'].trim() : null;
+  if (outcome.startsWith('spoke_') && !notes) {
+    return json({ error: 'notes_required' }, { status: 400 });
+  }
+  if (notes && notes.length > NOTES_MAX) {
+    return json({ error: 'notes_too_long', limit: NOTES_MAX }, { status: 400 });
+  }
+
+  // card_dwell_ms: optional, integer >= 0.
+  let cardDwellMs: number | null = null;
+  if (body['card_dwell_ms'] !== undefined && body['card_dwell_ms'] !== null) {
+    const n = body['card_dwell_ms'];
+    if (typeof n !== 'number' || !Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
+      return json({ error: 'invalid_card_dwell_ms' }, { status: 400 });
+    }
+    cardDwellMs = n;
+  }
+
+  const scriptVariantId =
+    typeof body['script_variant_id'] === 'string' && body['script_variant_id'].trim() !== ''
+      ? body['script_variant_id'].trim()
+      : null;
+
+  // Load the card + assert workability.
+  const card = await ctx.env.DB.prepare(
+    `SELECT id, company_name, contact_name, contact_email, contact_phone,
+            industry, source, imported_at, notes, attempt_count, card_status
+       FROM calling_list_item WHERE id = ?`,
+  )
+    .bind(id)
+    .first<CardLogCardRow & { card_status: string }>();
+  if (!card) return json({ error: 'not_found' }, { status: 404 });
+  if (!WORKABLE.has(card.card_status)) {
+    return json({ error: 'card_not_workable', card_status: card.card_status }, { status: 409 });
+  }
+
+  // Validate the script variant exists (only if one was sent).
+  if (scriptVariantId) {
+    const v = await ctx.env.DB.prepare(`SELECT id FROM script_variant WHERE id = ?`)
+      .bind(scriptVariantId)
+      .first<{ id: string }>();
+    if (!v) return json({ error: 'invalid_script_variant' }, { status: 400 });
+  }
+
+  const actor = { id: ctx.session.subjectId, ip: ctx.session.ipAddress, ua: ctx.session.userAgent };
+  const build = buildCardLogTransaction(
+    ctx.env,
+    card,
+    {
+      outcome,
+      nextMove,
+      nextActionDate: nextMove === 'retry' ? nextActionRaw : null,
+      notes,
+      scriptVariantId,
+      cardDwellMs,
+      scheduledAt,
+    },
+    actor,
+  );
+
+  await ctx.env.DB.batch(build.statements);
+
+  return json({
+    ok: true,
+    card_status: build.cardStatus,
+    lead_id: build.leadId,
+    opportunity_id: build.opportunityId,
+    assessment_id: build.assessmentId,
+  });
+}
+
+async function readJsonObject(req: Request): Promise<Record<string, unknown> | null> {
+  try {
+    const v = (await req.json()) as unknown;
+    if (v && typeof v === 'object' && !Array.isArray(v)) return v as Record<string, unknown>;
+    return null;
+  } catch {
+    return null;
+  }
 }

@@ -69,7 +69,7 @@ import {
   callingListDisqualifyHandler,
   callingListBulkRescheduleHandler,
 } from './calling-list';
-import { callsQueueHandler, callsFunnelVitalHandler } from './calls';
+import { callsQueueHandler, callsFunnelVitalHandler, callsLogHandler } from './calls';
 
 /**
  * Admin routes — admin_user session required.
@@ -617,6 +617,12 @@ export const adminRoutes: Route[] = [
     pattern: new URLPattern({ pathname: '/api/admin/calls/funnel-vital' }),
     description: 'Dashboard Calls vital: pending/in_progress counts + pre-formatted subline. READ-ONLY.',
     handler: callsFunnelVitalHandler,
+  },
+  {
+    method: 'POST',
+    pattern: new URLPattern({ pathname: '/api/admin/calls/:id/log' }),
+    description: 'Log a call outcome + apply next-move (pass|retry|promote|book) in one atomic batch.',
+    handler: callsLogHandler,
   },
 
   // Notifications log

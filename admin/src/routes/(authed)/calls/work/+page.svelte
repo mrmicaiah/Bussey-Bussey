@@ -19,6 +19,7 @@
     CallQueueResponse,
     CallQueueMode,
     CallFunnelVitalResponse,
+    CallLogResponse,
     ScriptVariantsResponse,
     ScriptVariantWithUsage,
   } from '$lib/types';
@@ -33,6 +34,7 @@
     { value: 'no_answer', label: 'No answer' },
     { value: 'gatekeeper', label: 'Gatekeeper' },
     { value: 'spoke_qualified', label: 'Spoke — qualified' },
+    { value: 'spoke_interested', label: 'Spoke — interested' },
     { value: 'spoke_not_interested', label: 'Spoke — not interested' },
     { value: 'spoke_callback_later', label: 'Spoke — callback later' },
     { value: 'wrong_number', label: 'Wrong number' },
@@ -80,6 +82,18 @@
   let showScript = $state(false);
   let showAllAttempts = $state(false);
   let dwellStart = $state(Date.now());
+  let scheduledAt = $state<string>(''); // datetime-local "YYYY-MM-DDTHH:mm"; book only
+  let logging = $state(false);
+  let logError = $state<string | null>(null);
+
+  // datetime-local default: tomorrow at 10:00 AM local (sensible starting point).
+  function defaultScheduledAt(): string {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(10, 0, 0, 0);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
 
   const currentCard = $derived<CallQueueCard | null>(queue[index] ?? null);
   const count = $derived(queue.length);
@@ -89,6 +103,21 @@
   const notesRequired = $derived(outcome?.startsWith('spoke_') ?? false);
   const showRetryDate = $derived(nextMove === 'retry');
   const atCap = $derived((currentCard?.attempt_count ?? 0) >= ATTEMPT_CAP);
+
+  // The log button is enabled only once the payload is server-valid: an outcome,
+  // a next-move, a retry date when retrying, a future scheduled_at when booking,
+  // and a note for spoke_* outcomes.
+  const showBookSchedule = $derived(nextMove === 'book');
+  const scheduledAtValid = $derived(
+    scheduledAt !== '' && new Date(scheduledAt).getTime() > Date.now(),
+  );
+  const canLog = $derived(
+    outcome !== null &&
+      nextMove !== null &&
+      (nextMove !== 'retry' || nextActionDate !== '') &&
+      (nextMove !== 'book' || scheduledAtValid) &&
+      (!notesRequired || notes.trim() !== ''),
+  );
 
   const industries = $derived(
     Array.from(
@@ -137,6 +166,9 @@
     showAllAttempts = false;
     selectedVariantId = openerVariants[0]?.id ?? null;
     dwellStart = Date.now();
+    scheduledAt = defaultScheduledAt();
+    logging = false;
+    logError = null;
   }
 
   async function startSession() {
@@ -189,7 +221,14 @@
         nextActionDate = ''; // operator picks the date
         break;
       case 'spoke_qualified':
-        nextMove = 'book';
+        // Softened default: 'promote', not 'book'. Booking fires a client +
+        // opportunity transaction — too heavy to pre-arm. The operator picks
+        // "Book assessment NOW" deliberately; qualified just defaults to a lead.
+        nextMove = 'promote';
+        nextActionDate = '';
+        break;
+      case 'spoke_interested':
+        nextMove = 'promote';
         nextActionDate = '';
         break;
       case 'spoke_not_interested':
@@ -214,11 +253,32 @@
   }
 
   function skipCard() {
-    // Card-dwell tracking (Alice hook): in step 4 this snapshot rides the log
-    // payload as card_dwell_ms. For step 3 we just prove the timer works.
-    // eslint-disable-next-line no-console
-    console.log('[calls] card_dwell_ms', Date.now() - dwellStart, 'card', currentCard?.id);
     advance();
+  }
+
+  // Step 4: persist the outcome + next-move, then advance. card_dwell_ms (the
+  // Alice attribution hook) rides the payload as a snapshot of time-on-card.
+  async function logAndNext() {
+    if (logging || !canLog || !currentCard) return;
+    logging = true;
+    logError = null;
+    try {
+      await api.post<CallLogResponse>(`/api/admin/calls/${currentCard.id}/log`, {
+        outcome,
+        next_move: nextMove,
+        next_action_date: nextMove === 'retry' ? nextActionDate : null,
+        notes: notes.trim() === '' ? null : notes.trim(),
+        script_variant_id: selectedVariantId,
+        card_dwell_ms: Date.now() - dwellStart,
+        // datetime-local is "YYYY-MM-DDTHH:mm" (local) → normalize to ISO 8601 UTC.
+        scheduled_at: nextMove === 'book' ? new Date(scheduledAt).toISOString() : null,
+      });
+      advance();
+    } catch (e) {
+      logError =
+        e instanceof ApiError ? `Couldn't log (${e.errorCode ?? e.status}).` : 'Network error.';
+      logging = false;
+    }
   }
 
   function endSession() {
@@ -518,16 +578,38 @@
         </div>
       {/if}
 
+      <!-- Assessment scheduling — revealed only when booking (§ step-4 revision) -->
+      {#if showBookSchedule}
+        <div class="field book-schedule">
+          <span class="field-label">When is the assessment scheduled?</span>
+          <input
+            type="datetime-local"
+            bind:value={scheduledAt}
+            aria-label="Assessment scheduled date and time"
+          />
+          <p class="caption">
+            This creates the assessment record. You can adjust the time later in the prospect
+            workspace if needed.
+          </p>
+          {#if scheduledAt !== '' && !scheduledAtValid}
+            <p class="caption warn">Pick a date and time in the future.</p>
+          {/if}
+        </div>
+      {/if}
+
+      {#if logError}<div class="cardErr">{logError}</div>{/if}
+
       <!-- Action buttons -->
       <div class="card-actions">
-        <button type="button" class="ghost" onclick={skipCard}>Skip card</button>
+        <button type="button" class="ghost" onclick={skipCard} disabled={logging}>Skip card</button>
         <button
           type="button"
           class="primary"
-          disabled
-          title="Log endpoint ships in step 4 — UI ready, action coming."
+          onclick={logAndNext}
+          disabled={!canLog || logging}
+          title={!canLog ? 'Pick an outcome, a next move, and any required note/date' : ''}
         >
-          Log &amp; next →
+          {logging ? 'Logging…' : 'Log & next →'}
         </button>
       </div>
     </div>
@@ -655,6 +737,14 @@
     background: rgba(245, 166, 35, 0.12); border: 1px solid var(--s44-amber);
     color: #fcd9a0; border-radius: 8px; padding: 0.6rem 0.8rem; font-size: 0.86rem; margin-bottom: 0.8rem;
   }
+
+  .book-schedule {
+    background: var(--s44-surface); border: 1px solid var(--s44-border);
+    border-radius: 10px; padding: 0.85rem 0.9rem; margin-top: 0.4rem;
+  }
+  .book-schedule input { max-width: 280px; }
+  .caption { color: var(--s44-muted); font-size: 0.8rem; margin: 0.5rem 0 0; line-height: 1.4; }
+  .caption.warn { color: var(--s44-amber); }
 
   .card-actions { display: flex; justify-content: space-between; gap: 0.8rem; margin-top: 1.5rem; }
 
