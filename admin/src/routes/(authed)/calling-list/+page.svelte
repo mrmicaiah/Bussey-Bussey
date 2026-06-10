@@ -97,7 +97,7 @@
 <div class="row" style="justify-content: space-between; align-items: baseline;">
   <h1>Calling list</h1>
   <div class="row" style="gap: var(--space-3);">
-    <a href={`${base}/calling-list/today`} class="muted small">Today only</a>
+    <a href={`${base}/calls`} class="muted small">Work calls →</a>
     <a href={`${base}/calling-list/import`}><Button variant="secondary">Import CSV</Button></a>
   </div>
 </div>

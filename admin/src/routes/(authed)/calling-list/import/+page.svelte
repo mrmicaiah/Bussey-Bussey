@@ -134,7 +134,7 @@
     {/if}
 
     <div class="row" style="margin-top: var(--space-4);">
-      <a href={`${base}/calling-list/today`}><Button>View today's cards</Button></a>
+      <a href={`${base}/calls`}><Button>Work the calls →</Button></a>
       <a href={`${base}/calling-list`}><Button variant="secondary">All cards</Button></a>
     </div>
   </div>

@@ -307,6 +307,10 @@ function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+// DEPRECATED (Calls layer step 6): the /calling-list/today page is retired and now
+// redirects to /calls. This endpoint stays one release as a read-only alias (spec
+// §5.5). TODO(post-calls-layer): remove this endpoint after operator confirms no
+// consumers remain.
 export async function callingListTodayHandler(ctx: HandlerContext): Promise<Response> {
   if (!ctx.session) return json({ error: 'unauthenticated' }, { status: 401 });
   const today = todayIsoDate();
