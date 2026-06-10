@@ -7,12 +7,15 @@
   import { onMount } from 'svelte';
   import { base } from '$app/paths';
   import { api, ApiError } from '$lib/api';
-  import type { DashboardResponse, ColdCallingTargetResponse, DemoSpecStatusRequest, DemoSpecStatusResponse } from '$lib/types';
+  import type { DashboardResponse, ColdCallingTargetResponse, DemoSpecStatusRequest, DemoSpecStatusResponse, CallFunnelVitalResponse } from '$lib/types';
   import Button from '$lib/components/Button.svelte';
 
   let { data }: { data: { user: import('$lib/types').AdminUser } } = $props();
 
   let dash = $state<DashboardResponse | null>(null);
+  // Calls vital (§6.1) reads its own live endpoint, not the dashboard payload.
+  // Best-effort: a failure here leaves the vital at 0 rather than breaking the page.
+  let callsVital = $state<CallFunnelVitalResponse | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
 
@@ -33,7 +36,12 @@
     loading = true;
     error = null;
     try {
-      dash = await api.get<DashboardResponse>('/api/admin/dashboard');
+      const [d, cv] = await Promise.all([
+        api.get<DashboardResponse>('/api/admin/dashboard'),
+        api.get<CallFunnelVitalResponse>('/api/admin/calls/funnel-vital').catch(() => null),
+      ]);
+      dash = d;
+      callsVital = cv;
     } catch (e) {
       error = e instanceof ApiError ? `Failed to load (${e.errorCode ?? e.status}).` : 'Network error.';
     } finally {
@@ -161,6 +169,17 @@
 
   <!-- ── TOP: funnel vitals ── -->
   <div class="funnel">
+    <!-- Calls (Calls layer §6.1) — leftmost, clickable into the calls wizard.
+         Visually identical to the Leads vital; reads its own live endpoint. -->
+    <a class="vital vital-link" href={`${base}/calls/work`}>
+      <div class="v-label">Calls</div>
+      <div class="v-big">{callsVital?.count ?? 0}</div>
+      <div class="v-sub muted">{callsVital?.subline ?? '0 never called · 0 callbacks due today'}</div>
+      <div class="v-foot muted">work the queue →</div>
+    </a>
+
+    <div class="arrow" aria-hidden="true">→</div>
+
     <div class="vital">
       <div class="v-label">Leads</div>
       <div class="v-big">{f.leads.total}</div>
@@ -191,6 +210,16 @@
         {#if f.presentations.next}next: {f.presentations.next.company}, {fmtShort(f.presentations.next.scheduled_at)}{:else}next: —{/if}
       </div>
     </div>
+
+    <div class="arrow" aria-hidden="true">→</div>
+
+    <!-- Clients (Calls layer §6.1) — rightmost. Visually identical to Presentations. -->
+    <div class="vital">
+      <div class="v-label">Clients</div>
+      <div class="v-big">{f.clients.total}</div>
+      <div class="v-sub muted">active</div>
+      <div class="v-foot muted">won deals</div>
+    </div>
   </div>
 
   {#if f.presentations.health === 'crimson'}
@@ -202,14 +231,16 @@
     <!-- 1. Cold calling -->
     <section class="station cold" class:priority>
       <header class="st-head">
-        <h2>Cold calling &amp; outreach</h2>
+        <h2>Calls</h2>
         {#if priority}<span class="chip chip-amber">feed the pipe</span>{/if}
       </header>
       <div class="cc-count">{s.cold_calling.calls_this_week} of {s.cold_calling.effective_target} calls</div>
       <div class="bar"><div class="bar-fill" class:priority style={`width:${pct(s.cold_calling.calls_this_week, s.cold_calling.effective_target)}%`}></div></div>
+      <div class="cc-today muted small">Made {s.cold_calling.calls_today} {s.cold_calling.calls_today === 1 ? 'call' : 'calls'} today</div>
 
       <div class="cc-actions">
-        <a href={`${base}/leads/work`}><Button>Work →</Button></a>
+        <a href={`${base}/calls/work`}><Button>Work Calls →</Button></a>
+        <a href={`${base}/leads/work`}><Button variant="secondary">Work Leads →</Button></a>
       </div>
 
       <div class="target">
@@ -372,6 +403,11 @@
   .health-text-calm { color: var(--muted); }
   .arrow { display: flex; align-items: center; color: var(--muted-3); font-size: 1.2rem; }
 
+  /* Calls vital is a link — inherit the .vital card look, no anchor chrome. */
+  .vital-link { text-decoration: none; color: inherit; transition: border-color 0.1s ease; cursor: pointer; }
+  .vital-link:hover { border-color: var(--accent); text-decoration: none; }
+  .vital-link:hover .v-label { color: var(--accent); }
+
   .system-note { margin: var(--space-3) 0 0; color: var(--warning); font-size: 0.9rem; }
   .warn-dot { color: var(--warning); }
 
@@ -399,7 +435,8 @@
   .bar { height: 6px; background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: 999px; overflow: hidden; }
   .bar-fill { height: 100%; background: rgba(212, 11, 30, 0.45); transition: width 0.2s ease; }
   .bar-fill.priority { background: var(--accent); }
-  .cc-actions { margin: 0.1rem 0; }
+  .cc-today { margin-top: 0.1rem; }
+  .cc-actions { margin: 0.1rem 0; display: flex; gap: var(--space-3); flex-wrap: wrap; }
   .target { border-top: 1px solid var(--border-soft); padding-top: var(--space-3); }
   .target-control { display: flex; align-items: center; gap: var(--space-4); margin: 0.4rem 0; }
   .step {

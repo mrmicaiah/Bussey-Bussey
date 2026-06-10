@@ -651,6 +651,7 @@ export type DashboardPresentationItem = {
 // into this sub-object without re-fetching the whole dashboard.
 export type ColdCallingState = {
   calls_this_week: number;
+  calls_today: number; // Calls layer §6.2 — card_activity rows logged today
   suggested_target: number;
   effective_target: number;
   override_active: boolean;
@@ -683,6 +684,7 @@ export type DashboardResponse = {
       health: DashboardHealth;
       next: { company: string; scheduled_at: string } | null;
     };
+    clients: { total: number }; // Calls layer §6.1 — active-client funnel vital
   };
   stations: {
     cold_calling: ColdCallingState;

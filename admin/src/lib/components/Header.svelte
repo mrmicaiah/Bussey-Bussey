@@ -27,7 +27,11 @@
 
 <header>
   <a class="brand" href={`${base}/`}>Studio<span class="b-accent">44</span></a>
-  <a class="work" href={`${base}/leads/work`} title="Start a calling session" aria-label="Start a calling session">
+  <!-- Calls layer §6.3: the global Work launcher points at the calls wizard. Chose the
+       simple always-/calls/work link over an inline funnel-vital fetch — the header is a
+       per-page component, the wizard's empty state already handles "no cards → import a
+       list", and it matches the new architecture's calls-first bias. -->
+  <a class="work" href={`${base}/calls/work`} title="Start a calling session" aria-label="Start a calling session">
     Work →
   </a>
   <nav>

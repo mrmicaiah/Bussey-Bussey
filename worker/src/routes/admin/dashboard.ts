@@ -50,7 +50,8 @@ export async function getDashboardHandler(ctx: HandlerContext): Promise<Response
   const tomorrowStart = new Date(Date.parse(todayStart) + 86400000).toISOString();
   const CALLABLE = `status NOT IN ('converted', 'disqualified') AND do_not_call = 0 AND is_dead_number = 0`;
 
-  const [pdata, leadsRow, linesRes, callsRow, targetRow, apptsRes] = await Promise.all([
+  const [pdata, leadsRow, linesRes, callsRow, targetRow, apptsRes, callsTodayRow, clientsRow] =
+    await Promise.all([
     gatherProspectData(env), // opps + assessments + demos + proposals (prospect-scoped)
     env.DB.prepare(
       `SELECT COUNT(*) AS total, SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) AS this_week
@@ -88,6 +89,19 @@ export async function getDashboardHandler(ctx: HandlerContext): Promise<Response
     )
       .bind(todayStart, tomorrowStart)
       .all<ApptRow>(),
+    // Calls layer (§6.2): "Made X calls today" — card_activity rows this operator
+    // logged today. card_activity.created_at is datetime('now') ("YYYY-MM-DD HH:MM:SS",
+    // space-separated), so it is NOT lexically comparable to the ISO todayStart used
+    // elsewhere — compare on date(created_at)=date('now') (UTC, matching the rest of
+    // this handler's day math). Operator-scoped, mirroring calls_this_week above.
+    env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM card_activity
+        WHERE created_by_user_id = ? AND date(created_at) = date('now')`,
+    )
+      .bind(operatorId)
+      .first<{ n: number }>(),
+    // Calls layer (§6.1): Clients funnel-vital — active clients.
+    env.DB.prepare(`SELECT COUNT(*) AS n FROM client WHERE status = 'active'`).first<{ n: number }>(),
   ]);
 
   const linesByProposal = new Map((linesRes.results ?? []).map((l) => [l.proposal_id, l]));
@@ -159,6 +173,7 @@ export async function getDashboardHandler(ctx: HandlerContext): Promise<Response
   const effectiveTarget = overrideActive ? targetRow!.target : suggestedTarget;
   const stationsColdCalling = {
     calls_this_week: callsRow?.n ?? 0,
+    calls_today: callsTodayRow?.n ?? 0,
     suggested_target: suggestedTarget,
     effective_target: effectiveTarget,
     override_active: overrideActive,
@@ -247,6 +262,7 @@ export async function getDashboardHandler(ctx: HandlerContext): Promise<Response
       leads: funnelLeads,
       prospects: funnelProspects,
       presentations: funnelPresentations,
+      clients: { total: clientsRow?.n ?? 0 },
     },
     stations: {
       cold_calling: stationsColdCalling,
