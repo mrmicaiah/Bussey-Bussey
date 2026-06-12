@@ -16,12 +16,14 @@
     goto(`${base}/login`);
   }
 
+  // Nav mirrors the dashboard's funnel-vital order: Calls → Leads → Prospects →
+  // Clients. Dashboard stays first as the home page (not a funnel stage).
   const navItems = [
     { href: `${base}/`, label: 'Dashboard', match: (p: string) => p === `${base}/` || p === base },
+    { href: `${base}/calls`, label: 'Calls', match: (p: string) => p.startsWith(`${base}/calls`) || p.startsWith(`${base}/calling-list`) },
     { href: `${base}/leads`, label: 'Leads', match: (p: string) => p.startsWith(`${base}/leads`) },
     { href: `${base}/prospects`, label: 'Prospects', match: (p: string) => p.startsWith(`${base}/prospects`) },
     { href: `${base}/clients`, label: 'Clients', match: (p: string) => p.startsWith(`${base}/clients`) },
-    { href: `${base}/calls`, label: 'Calls', match: (p: string) => p.startsWith(`${base}/calls`) || p.startsWith(`${base}/calling-list`) },
   ];
 </script>
 

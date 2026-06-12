@@ -252,7 +252,7 @@ export async function callsLogHandler(ctx: HandlerContext): Promise<Response> {
   }
 
   // scheduled_at: required on book, must be a valid ISO datetime in the future.
-  // Ignored (forced null) for every other next_move.
+  // Symmetric with next_action_date — rejected (not silently dropped) off-book.
   let scheduledAt: string | null = null;
   if (nextMove === 'book') {
     const raw = typeof body['scheduled_at'] === 'string' ? body['scheduled_at'].trim() : '';
@@ -265,6 +265,9 @@ export async function callsLogHandler(ctx: HandlerContext): Promise<Response> {
       return json({ error: 'scheduled_at_must_be_future' }, { status: 400 });
     }
     scheduledAt = when.toISOString();
+  } else {
+    const raw = typeof body['scheduled_at'] === 'string' ? body['scheduled_at'].trim() : '';
+    if (raw) return json({ error: 'scheduled_at_not_allowed' }, { status: 400 });
   }
 
   // notes: required when a human conversation happened (spoke_* outcomes).

@@ -86,6 +86,13 @@
   let logging = $state(false);
   let logError = $state<string | null>(null);
 
+  // Success toast — shown ONLY on a successful book log (booking creates a real
+  // client + opportunity + assessment, so the operator gets visible confirmation).
+  // ~3s auto-dismiss; persists across the advance onto the next card. Inline to
+  // this page only (no global toast system — scoped per the cleanup brief).
+  let bookToast = $state<string | null>(null);
+  let bookToastTimer: ReturnType<typeof setTimeout> | null = null;
+
   // datetime-local default: tomorrow at 10:00 AM local (sensible starting point).
   function defaultScheduledAt(): string {
     const d = new Date();
@@ -273,6 +280,15 @@
         // datetime-local is "YYYY-MM-DDTHH:mm" (local) → normalize to ISO 8601 UTC.
         scheduled_at: nextMove === 'book' ? new Date(scheduledAt).toISOString() : null,
       });
+      // Book path only: confirm the scheduled assessment before advancing.
+      if (nextMove === 'book') {
+        if (bookToastTimer) clearTimeout(bookToastTimer);
+        bookToast = `Booked — assessment scheduled for ${fmtBooked(scheduledAt)}`;
+        bookToastTimer = setTimeout(() => {
+          bookToast = null;
+          bookToastTimer = null;
+        }, 3000);
+      }
       advance();
     } catch (e) {
       logError =
@@ -283,6 +299,9 @@
 
   function endSession() {
     if (outcome !== null && !confirm('Discard the outcome you selected for this card?')) return;
+    if (bookToastTimer) clearTimeout(bookToastTimer);
+    bookToastTimer = null;
+    bookToast = null;
     phase = 'setup';
     queue = [];
     index = 0;
@@ -301,6 +320,19 @@
         day: 'numeric',
         year: 'numeric',
       });
+    } catch {
+      return s;
+    }
+  }
+
+  // Friendly local datetime for the book-success toast, e.g. "Tue, Jun 11 at 10:00 AM".
+  // `s` is the datetime-local string "YYYY-MM-DDTHH:mm" (parsed as local time).
+  function fmtBooked(s: string): string {
+    try {
+      const d = new Date(s);
+      const date = d.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+      const time = d.toLocaleString(undefined, { hour: 'numeric', minute: '2-digit' });
+      return `${date} at ${time}`;
     } catch {
       return s;
     }
@@ -451,6 +483,10 @@
       <div class="head-mid">Card {index + 1} of {count}</div>
       <span class="station">Calls station</span>
     </header>
+
+    {#if bookToast}
+      <div class="book-toast" role="status">{bookToast}</div>
+    {/if}
 
     <div class="card">
       <!-- Identity -->
@@ -645,6 +681,14 @@
   .cardErr {
     background: rgba(212, 11, 30, 0.12); border: 1px solid var(--s44-crimson);
     color: #fca5a5; border-radius: 8px; padding: 0.7rem 0.9rem; font-size: 0.9rem; margin: 0.6rem 0;
+  }
+
+  /* Success surface variant — green accent, distinct from the crimson .cardErr.
+     Shown on a successful book log (assessment scheduled). */
+  .book-toast {
+    background: rgba(34, 197, 94, 0.12); border: 1px solid #22c55e;
+    color: #86efac; border-radius: 8px; padding: 0.7rem 0.9rem; font-size: 0.9rem;
+    margin: 0 0 1rem; max-width: 680px; font-weight: 600;
   }
 
   /* ── Setup screen ── */
